@@ -1,0 +1,63 @@
+# =============================================================================
+# xSmartDeepResearch 依赖
+# =============================================================================
+
+# Core
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# Web Framework
+fastapi>=0.100.0
+uvicorn>=0.23.0
+starlette>=0.27.0
+
+# HTTP Client
+httpx>=0.24.0
+aiohttp>=3.8.0
+requests>=2.31.0
+nest-asyncio>=1.5.0
+
+# LLM
+openai>=1.0.0
+tiktoken>=0.5.0
+transformers>=4.35.0
+
+# Agent Framework (可选，如需使用qwen-agent)
+# qwen-agent>=0.0.26
+
+# Tools
+json5>=0.9.0
+
+# Sandbox (可选)
+# sandbox-fusion>=0.3.0
+
+# UI
+gradio>=4.0.0
+
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Document Parsing
+pdfplumber>=0.10.0
+python-pptx>=0.6.21
+openpyxl>=3.1.0
+python-docx>=0.8.11
+
+# Cache
+redis>=4.5.0
+chromadb>=0.4.0
+sentence-transformers>=2.2.0
+
+# Logging
+rich>=13.0.0
+
+# Testing
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+
+# Development
+black>=23.0.0
+isort>=5.12.0
+mypy>=1.5.0

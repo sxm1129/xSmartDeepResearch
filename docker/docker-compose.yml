@@ -1,0 +1,44 @@
+# Docker Compose 配置
+version: '3.8'
+
+services:
+  # xSmartDeepResearch 主服务
+  xsmart:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: xsmart-research
+    ports:
+      - "8000:8000" # API 服务
+      - "7860:7860" # Gradio UI
+    env_file:
+      - ../.env
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - ../data:/app/data
+      - ../logs:/app/logs
+    restart: unless-stopped
+    depends_on:
+      - redis
+    networks:
+      - xsmart-network
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: xsmart-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - xsmart-network
+
+networks:
+  xsmart-network:
+    driver: bridge
+
+volumes:
+  redis_data:
