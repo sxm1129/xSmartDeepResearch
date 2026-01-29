@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 
 from config import settings
 from src.api.schemas import HealthCheck
-from src.api.routes import research_router
+from src.api.routes import research_router, settings_router
 from src.api.dependencies import get_available_tools
 
 
@@ -118,6 +118,7 @@ async def root():
 
 # 注册路由
 app.include_router(research_router, prefix="/api/v1")
+app.include_router(settings_router, prefix="/api/v1")
 
 
 # 直接运行

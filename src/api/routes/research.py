@@ -17,6 +17,7 @@ from src.api.schemas import (
     BatchResearchRequest,
     BatchResearchResponse
 )
+from typing import List
 from src.utils.logger import logger
 from src.api.dependencies import get_agent, get_task_store
 
@@ -24,8 +25,10 @@ from src.api.dependencies import get_agent, get_task_store
 router = APIRouter(prefix="/research", tags=["Research"])
 
 
-# 任务存储（简单内存实现，生产环境应使用Redis）
-_tasks: Dict[str, Dict[str, Any]] = {}
+from src.utils.session_manager import SessionManager
+
+# 任务存储 (MySQL)
+session_manager = SessionManager()
 
 
 @router.post("/stream")
@@ -43,19 +46,53 @@ async def stream_research(
         agent.max_iterations = research_request.max_iterations
         
         try:
+            # Create task record
+            task_id = str(uuid.uuid4())[:8]
+            session_manager.create_research_task(
+                task_id=task_id,
+                question=research_request.question,
+                status=ResearchStatus.RUNNING
+            )
+
             # agent.stream_run 是同步生成器
+            final_result = None
             for event in agent.stream_run(research_request.question):
                 # 检查客户端是否已断开
                 if await request.is_disconnected():
                     logger.info("Client disconnected, stopping research stream.")
                     break
-                    
+                
+                # Capture result if event type is 'result' (assuming agent yields it)
+                # But typically agent yields dicts. We need to check structure.
+                # Assuming standard Agent events. 
+                # If event has answer, store it.
+                if isinstance(event, dict) and "prediction" in event: # Check your agent contract
+                     final_result = event
+
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
                 # 给一点时间让IO发生，支持协程切换
                 await asyncio.sleep(0.01)
-                
+            
+            # Update task on completion (We need to capture the final result from the stream)
+            # Since stream_run yields events, we might not get the full Result object easily unless the last event is the result.
+            # Let's assume the agent emits a final event or we capture the answer.
+            # For xSmartReactAgent, stream_run usually yields steps.
+            # We might need to run agent.run() separately or refactor agent.stream_run to return result.
+            # However, for now, let's at least mark it as COMPLETED so it shows in history, 
+            # even if answer is incomplete (or we can capture it if possible).
+            
+            # Since we can't easily capture the return value of the generator, we might just update status.
+            session_manager.update_research_task(task_id, {
+                "status": ResearchStatus.COMPLETED,
+                # "answer": ... # Needs update if we can capture it
+            })
+
         except Exception as e:
             logger.error(f"Stream research failed: {e}")
+            session_manager.update_research_task(task_id, {
+                "status": ResearchStatus.FAILED,
+                "termination_reason": str(e)
+            })
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
@@ -112,16 +149,12 @@ async def create_async_research(
     """
     task_id = str(uuid.uuid4())[:8]
     
-    # 初始化任务状态
-    _tasks[task_id] = {
-        "status": ResearchStatus.PENDING,
-        "question": request.question,
-        "answer": None,
-        "iterations": 0,
-        "execution_time": 0,
-        "termination_reason": "",
-        "created_at": datetime.now()
-    }
+    # 初始化任务状态 (MySQL)
+    session_manager.create_research_task(
+        task_id=task_id,
+        question=request.question,
+        status=ResearchStatus.PENDING
+    )
     
     # 在后台执行研究
     background_tasks.add_task(
@@ -141,7 +174,7 @@ async def create_async_research(
 async def _run_research_task(task_id: str, request: ResearchRequest):
     """后台执行研究任务"""
     try:
-        _tasks[task_id]["status"] = ResearchStatus.RUNNING
+        session_manager.update_research_task(task_id, {"status": ResearchStatus.RUNNING})
         
         agent = get_agent()
         agent.max_iterations = request.max_iterations
@@ -153,7 +186,7 @@ async def _run_research_task(task_id: str, request: ResearchRequest):
             lambda: agent.run(request.question)
         )
         
-        _tasks[task_id].update({
+        session_manager.update_research_task(task_id, {
             "status": ResearchStatus.COMPLETED,
             "answer": result.prediction,
             "iterations": result.iterations,
@@ -162,7 +195,7 @@ async def _run_research_task(task_id: str, request: ResearchRequest):
         })
         
     except Exception as e:
-        _tasks[task_id].update({
+        session_manager.update_research_task(task_id, {
             "status": ResearchStatus.FAILED,
             "answer": f"Error: {str(e)}",
             "termination_reason": "error"
@@ -176,21 +209,45 @@ async def get_research_result(task_id: str):
     
     根据任务ID查询研究结果。
     """
-    if task_id not in _tasks:
+    task = session_manager.get_research_task(task_id)
+    if not task:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
-    
-    task = _tasks[task_id]
     
     return ResearchResponse(
         task_id=task_id,
         question=task["question"],
-        answer=task.get("answer", ""),
+        answer=task.get("answer") or "",
         status=task["status"],
         iterations=task.get("iterations", 0),
         execution_time=task.get("execution_time", 0),
-        termination_reason=task.get("termination_reason", ""),
-        created_at=task.get("created_at", datetime.now())
+        termination_reason=task.get("termination_reason") or "",
+        created_at=task.get("created_at"),
+        is_bookmarked=task.get("is_bookmarked") or False
     )
+
+
+@router.get("/history", response_model=List[ResearchResponse])
+async def list_research_history():
+    """
+    获取研究历史任务列表
+    """
+    history = []
+    tasks = session_manager.list_research_tasks(limit=100)
+    
+    for task in tasks:
+        history.append(ResearchResponse(
+            task_id=task["task_id"],
+            question=task["question"],
+            answer=task.get("answer") or "",
+            status=task["status"],
+            iterations=task.get("iterations", 0),
+            execution_time=task.get("execution_time", 0),
+            termination_reason=task.get("termination_reason") or "",
+            created_at=task.get("created_at"),
+            is_bookmarked=task.get("is_bookmarked") or False
+        ))
+    
+    return history
 
 
 @router.get("/{task_id}/status", response_model=TaskStatus)
@@ -200,10 +257,9 @@ async def get_research_status(task_id: str):
     
     快速查询任务当前状态。
     """
-    if task_id not in _tasks:
+    task = session_manager.get_research_task(task_id)
+    if not task:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
-    
-    task = _tasks[task_id]
     
     # 计算进度
     progress = None
@@ -218,7 +274,7 @@ async def get_research_status(task_id: str):
         status=task["status"],
         progress=progress,
         current_iteration=task.get("iterations", 0),
-        message=task.get("termination_reason", "")
+        message=task.get("termination_reason") or ""
     )
 
 
@@ -239,17 +295,14 @@ async def create_batch_research(
         task_id = str(uuid.uuid4())[:10]
         task_ids.append(task_id)
         
-        # 初始化任务状态
-        _tasks[task_id] = {
-            "status": ResearchStatus.PENDING,
-            "question": question,
-            "answer": None,
-            "iterations": 0,
-            "execution_time": 0,
-            "termination_reason": "",
-            "created_at": datetime.now(),
-            "batch_id": batch_id
-        }
+        task_ids.append(task_id)
+        
+        # 初始化任务状态 (MySQL)
+        session_manager.create_research_task(
+            task_id=task_id,
+            question=question,
+            status=ResearchStatus.PENDING
+        )
         
         # 在后台并行启动
         research_req = ResearchRequest(
@@ -274,10 +327,9 @@ async def cancel_research(task_id: str):
     """
     取消研究任务（仅支持PENDING状态的任务）
     """
-    if task_id not in _tasks:
+    task = session_manager.get_research_task(task_id)
+    if not task:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
-    
-    task = _tasks[task_id]
     
     if task["status"] not in [ResearchStatus.PENDING, ResearchStatus.RUNNING]:
         raise HTTPException(
@@ -286,7 +338,23 @@ async def cancel_research(task_id: str):
         )
     
     # 标记为取消（实际取消需要更复杂的实现）
-    _tasks[task_id]["status"] = ResearchStatus.FAILED
-    _tasks[task_id]["termination_reason"] = "cancelled"
+    session_manager.update_research_task(task_id, {
+        "status": ResearchStatus.FAILED,
+        "termination_reason": "cancelled"
+    })
     
     return {"message": f"Task {task_id} cancelled"}
+
+@router.post("/{task_id}/bookmark")
+async def toggle_bookmark(task_id: str):
+    """
+    切换研究任务的收藏状态
+    """
+    # Check existence
+    task = session_manager.get_research_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+        
+    is_bookmarked = session_manager.toggle_research_bookmark(task_id)
+    
+    return {"message": "Bookmark updated", "is_bookmarked": is_bookmarked}

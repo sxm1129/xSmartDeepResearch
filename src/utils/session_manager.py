@@ -108,6 +108,22 @@ class SessionManager:
                     FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """)
+
+            # 创建 Research Tasks 表 (新)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS research_tasks (
+                    task_id VARCHAR(36) PRIMARY KEY,
+                    question TEXT,
+                    answer LONGTEXT,
+                    status VARCHAR(20),
+                    iterations INT DEFAULT 0,
+                    execution_time FLOAT DEFAULT 0,
+                    termination_reason TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    is_bookmarked BOOLEAN DEFAULT FALSE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """)
             
             conn.commit()
             conn.close()
@@ -228,5 +244,113 @@ class SessionManager:
             
             conn.commit()
             conn.close()
-        except Exception as e:
             logger.error(f"Failed to delete session {session_id}: {e}")
+
+    # --- Research Task Management ---
+
+    def create_research_task(self, task_id: str, question: str, status: str = "pending"):
+        """创建研究任务"""
+        try:
+            conn = self._get_connection(self.db_name)
+            cursor = conn.cursor()
+            
+            cursor.execute(
+                "INSERT INTO research_tasks (task_id, question, status) VALUES (%s, %s, %s)",
+                (task_id, question, status)
+            )
+            
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Failed to create research task: {e}")
+
+    def update_research_task(self, task_id: str, update_data: Dict[str, Any]):
+        """更新研究任务"""
+        try:
+            conn = self._get_connection(self.db_name)
+            cursor = conn.cursor()
+            
+            fields = []
+            values = []
+            for k, v in update_data.items():
+                fields.append(f"{k} = %s")
+                values.append(v)
+            
+            if not fields:
+                return
+
+            values.append(task_id)
+            sql = f"UPDATE research_tasks SET {', '.join(fields)} WHERE task_id = %s"
+            
+            cursor.execute(sql, tuple(values))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Failed to update research task {task_id}: {e}")
+
+    def get_research_task(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """获取单个任务详情"""
+        try:
+            conn = self._get_connection(self.db_name)
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT * FROM research_tasks WHERE task_id = %s", (task_id,))
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row:
+                self._format_datetime(row)
+                return row
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get research task {task_id}: {e}")
+            return None
+
+    def list_research_tasks(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """列出所有任务"""
+        try:
+            conn = self._get_connection(self.db_name)
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT * FROM research_tasks ORDER BY created_at DESC LIMIT %s", (limit,))
+            rows = cursor.fetchall()
+            conn.close()
+            
+            for row in rows:
+                self._format_datetime(row)
+            return rows
+        except Exception as e:
+            logger.error(f"Failed to list research tasks: {e}")
+            return []
+
+    def toggle_research_bookmark(self, task_id: str) -> bool:
+        """切换收藏状态"""
+        try:
+            conn = self._get_connection(self.db_name)
+            cursor = conn.cursor()
+            
+            # Check current status
+            cursor.execute("SELECT is_bookmarked FROM research_tasks WHERE task_id = %s", (task_id,))
+            result = cursor.fetchone()
+            if not result:
+                return False
+                
+            new_status = not result.get('is_bookmarked', False)
+            
+            cursor.execute(
+                "UPDATE research_tasks SET is_bookmarked = %s WHERE task_id = %s",
+                (new_status, task_id)
+            )
+            conn.commit()
+            conn.close()
+            return new_status
+        except Exception as e:
+            logger.error(f"Failed to toggle bookmark for {task_id}: {e}")
+            return False
+
+    def _format_datetime(self, row: Dict[str, Any]):
+        """Helper to format datetime objects to string in place"""
+        if isinstance(row.get('created_at'), datetime):
+            row['created_at'] = row['created_at'].isoformat()
+        if isinstance(row.get('updated_at'), datetime):
+            row['updated_at'] = row['updated_at'].isoformat()

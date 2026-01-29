@@ -54,7 +54,8 @@ class ResearchResponse(BaseModel):
                 "iterations": 15,
                 "execution_time": 45.2,
                 "termination_reason": "answer",
-                "created_at": "2024-01-28T10:00:00"
+                "created_at": "2024-01-28T10:00:00",
+                "is_bookmarked": False
             }
         }
 
