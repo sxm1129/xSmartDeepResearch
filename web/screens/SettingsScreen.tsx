@@ -12,6 +12,9 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
         openrouter_api_key_masked: '',
         serper_api_key_masked: ''
     });
+    const [availableModels, setAvailableModels] = useState<Array<{ id: string; name: string; context_length?: number }>>([]);
+    const [fetchingModels, setFetchingModels] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
@@ -21,7 +24,20 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
 
     useEffect(() => {
         loadSettings();
+        fetchModels();
     }, []);
+
+    const fetchModels = async () => {
+        setFetchingModels(true);
+        try {
+            const models = await ResearchService.getAvailableModels();
+            setAvailableModels(models);
+        } catch (e) {
+            console.error("Failed to fetch models", e);
+        } finally {
+            setFetchingModels(false);
+        }
+    };
 
     const loadSettings = async () => {
         try {
@@ -97,19 +113,64 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
                             </div>
                             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="col-span-2">
-                                    <label className="block text-sm font-medium mb-2 text-slate-700">Primary Model</label>
-                                    <div className="relative">
-                                        <select
-                                            value={settings.model_name}
-                                            onChange={(e) => setSettings({ ...settings, model_name: e.target.value })}
-                                            className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-primary focus:border-primary block p-3 pr-10 appearance-none">
-                                            <option value="gpt-4o">GPT-4o (OpenRouter)</option>
-                                            <option value="openai/gpt-4o-mini">GPT-4o Mini (OpenRouter)</option>
-                                            <option value="z-ai/glm-4.7-flash">GLM-4.7 Flash (OpenRouter)</option>
-                                            <option value="deepseek/deepseek-chat">DeepSeek Chat (OpenRouter)</option>
-                                        </select>
-                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
-                                            <Icon name="expand_more" className="text-sm" />
+                                    <div className="flex justify-between items-center mb-2">
+                                        <label className="block text-sm font-medium text-slate-700">Primary Model</label>
+                                        <button
+                                            onClick={fetchModels}
+                                            disabled={fetchingModels}
+                                            className="text-xs text-primary hover:text-primary-dark flex items-center gap-1 disabled:opacity-50"
+                                        >
+                                            <Icon name="refresh" className={`text-[14px] ${fetchingModels ? 'animate-spin' : ''}`} />
+                                            Update List
+                                        </button>
+                                    </div>
+
+                                    <div className="flex flex-col gap-3">
+                                        {/* Search Filter */}
+                                        <div className="relative">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <Icon name="search" className="text-slate-400 text-sm" />
+                                            </div>
+                                            <input
+                                                type="text"
+                                                placeholder="Search models (e.g. gpt, claude, deepseek)..."
+                                                value={searchQuery}
+                                                onChange={(e) => setSearchQuery(e.target.value)}
+                                                className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-primary focus:border-primary block p-2.5 pl-10"
+                                            />
+                                        </div>
+
+                                        <div className="relative">
+                                            <select
+                                                value={settings.model_name}
+                                                onChange={(e) => setSettings({ ...settings, model_name: e.target.value })}
+                                                className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-primary focus:border-primary block p-3 pr-10 appearance-none max-h-[300px]">
+                                                {/* Current Value if not in available models */}
+                                                {!availableModels.find(m => m.id === settings.model_name) && (
+                                                    <option value={settings.model_name}>{settings.model_name} (Current)</option>
+                                                )}
+
+                                                {/* Filtered Models */}
+                                                {availableModels
+                                                    .filter(m =>
+                                                        !searchQuery ||
+                                                        m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                                        m.id.toLowerCase().includes(searchQuery.toLowerCase())
+                                                    )
+                                                    .map(model => (
+                                                        <option key={model.id} value={model.id}>
+                                                            {model.name} ({model.id})
+                                                        </option>
+                                                    ))
+                                                }
+
+                                                {availableModels.length === 0 && !fetchingModels && (
+                                                    <option disabled>No models found. Check your API key.</option>
+                                                )}
+                                            </select>
+                                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
+                                                <Icon name="expand_more" className="text-sm" />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

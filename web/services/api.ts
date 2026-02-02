@@ -149,4 +149,12 @@ export class ResearchService {
         }
         return response.json();
     }
+
+    static async getAvailableModels(): Promise<Array<{ id: string; name: string; context_length?: number; pricing?: any }>> {
+        const response = await fetch('/api/v1/settings/models');
+        if (!response.ok) {
+            throw new Error('Failed to fetch available models');
+        }
+        return response.json();
+    }
 }

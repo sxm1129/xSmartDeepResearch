@@ -1,11 +1,20 @@
 """Settings API 路由"""
 
 from fastapi import APIRouter, HTTPException
+import httpx
+import time
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from config import settings
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
+
+# In-memory cache for models
+_models_cache = {
+    "data": [],
+    "expiry": 0
+}
+CACHE_TTL = 3600  # 1 hour
 
 class SettingsUpdate(BaseModel):
     model_name: Optional[str] = None
@@ -67,3 +76,54 @@ async def update_settings(update: SettingsUpdate):
         settings.serper_api_key = update.serper_api_key
         
     return await get_settings()
+
+@router.get("/models")
+async def get_available_models():
+    """从 OpenRouter 获取可用模型列表"""
+    global _models_cache
+    
+    # Check cache
+    now = time.time()
+    if _models_cache["data"] and now < _models_cache["expiry"]:
+        return _models_cache["data"]
+        
+    api_key = settings.openrouter_key or settings.api_key
+    if not api_key or "your" in api_key:
+        # Return fallback models if no key
+        return [
+            {"id": "gpt-4o", "name": "GPT-4o"},
+            {"id": "openai/gpt-4o-mini", "name": "GPT-4o Mini"},
+            {"id": "z-ai/glm-4.7-flash", "name": "GLM-4.7 Flash"},
+            {"id": "deepseek/deepseek-chat", "name": "DeepSeek Chat"}
+        ]
+        
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://openrouter.ai/api/v1/models",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=10.0
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            models = []
+            for m in data.get("data", []):
+                models.append({
+                    "id": m.get("id"),
+                    "name": m.get("name"),
+                    "context_length": m.get("context_length"),
+                    "pricing": m.get("pricing")
+                })
+            
+            # Update cache
+            _models_cache["data"] = models
+            _models_cache["expiry"] = now + CACHE_TTL
+            
+            return models
+    except Exception as e:
+        # If error, return fallback and don't cache expiry
+        return [
+            {"id": "gpt-4o", "name": "GPT-4o"},
+            {"id": "openai/gpt-4o-mini", "name": "GPT-4o Mini"}
+        ]
