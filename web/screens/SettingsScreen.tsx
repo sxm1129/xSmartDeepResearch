@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { Icon } from '../components/Icon';
 import { ResearchService, Settings } from '../services/api';
+import { LanguageContext } from '../App';
 
 export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowError }) => {
+    const { t } = useContext(LanguageContext);
     const [settings, setSettings] = useState<Settings>({
         model_name: 'gpt-4o',
         temperature: 0.7,
@@ -68,31 +70,31 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
             setSettings(newSettings);
             setOpenrouterKey(''); // Clear after save
             setSerperKey('');
-            alert('Settings saved successfully!');
+            alert(t('settingsSaved'));
         } catch (e) {
             console.error("Failed to save settings", e);
-            alert('Failed to save settings.');
+            alert(t('saveFailed'));
         } finally {
             setSaving(false);
         }
     };
 
-    if (loading) return <div className="p-10 text-center text-slate-500">Loading settings...</div>;
+    if (loading) return <div className="p-10 text-center text-slate-500">{t('loading')}</div>;
 
     return (
         <div className="flex flex-col h-full bg-background-light overflow-y-auto">
             {/* Header */}
             <header className="flex items-center justify-between px-10 py-3 bg-white border-b border-slate-200 sticky top-0 z-20">
                 <div className="flex flex-col gap-2">
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">Agent Configuration</h1>
-                    <p className="text-slate-500 text-base font-normal">Configure your AI agent's model parameters, search capabilities, and API credentials.</p>
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">{t('agentConfiguration')}</h1>
+                    <p className="text-slate-500 text-base font-normal">{t('configDesc')}</p>
                 </div>
                 <div className="flex gap-3">
                     <button onClick={() => loadSettings()} className="flex items-center justify-center rounded-lg h-10 px-6 border border-slate-300 bg-white text-sm font-medium hover:bg-slate-50 transition-colors">
-                        Reset
+                        {t('reset')}
                     </button>
                     <button onClick={handleSave} disabled={saving} className="flex items-center justify-center rounded-lg h-10 px-6 bg-primary text-white text-sm font-bold shadow-lg shadow-primary/30 hover:bg-primary-dark transition-colors disabled:opacity-50">
-                        {saving ? 'Saving...' : 'Save Changes'}
+                        {saving ? t('saving') : t('saveChanges')}
                     </button>
                 </div>
             </header>
@@ -108,20 +110,20 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
                             <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                                 <h3 className="text-lg font-bold flex items-center gap-2">
                                     <Icon name="psychology" className="text-primary" />
-                                    Model Selection
+                                    {t('modelSelection')}
                                 </h3>
                             </div>
                             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="col-span-2">
                                     <div className="flex justify-between items-center mb-2">
-                                        <label className="block text-sm font-medium text-slate-700">Primary Model</label>
+                                        <label className="block text-sm font-medium text-slate-700">{t('primaryModel')}</label>
                                         <button
                                             onClick={fetchModels}
                                             disabled={fetchingModels}
                                             className="text-xs text-primary hover:text-primary-dark flex items-center gap-1 disabled:opacity-50"
                                         >
                                             <Icon name="refresh" className={`text-[14px] ${fetchingModels ? 'animate-spin' : ''}`} />
-                                            Update List
+                                            {t('updateList')}
                                         </button>
                                     </div>
 
@@ -133,7 +135,7 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
                                             </div>
                                             <input
                                                 type="text"
-                                                placeholder="Search models (e.g. gpt, claude, deepseek)..."
+                                                placeholder={t('searchModelsPlaceholder')}
                                                 value={searchQuery}
                                                 onChange={(e) => setSearchQuery(e.target.value)}
                                                 className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-primary focus:border-primary block p-2.5 pl-10"
@@ -147,7 +149,7 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
                                                 className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-primary focus:border-primary block p-3 pr-10 appearance-none max-h-[300px]">
                                                 {/* Current Value if not in available models */}
                                                 {!availableModels.find(m => m.id === settings.model_name) && (
-                                                    <option value={settings.model_name}>{settings.model_name} (Current)</option>
+                                                    <option value={settings.model_name}>{settings.model_name} ({t('current')})</option>
                                                 )}
 
                                                 {/* Filtered Models */}
@@ -165,7 +167,7 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
                                                 }
 
                                                 {availableModels.length === 0 && !fetchingModels && (
-                                                    <option disabled>No models found. Check your API key.</option>
+                                                    <option disabled>{t('noModelsFound')}</option>
                                                 )}
                                             </select>
                                             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
@@ -178,7 +180,7 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
                                 <div className="space-y-4">
                                     <div className="flex justify-between items-center mb-1">
                                         <label className="text-sm font-medium text-slate-700 flex items-center gap-1">
-                                            Temperature
+                                            {t('temperature')}
                                             <Icon name="info" className="text-slate-400 text-[16px] cursor-help" />
                                         </label>
                                         <span className="text-xs font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-600">{settings.temperature}</span>
@@ -189,14 +191,14 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
                                         className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary"
                                     />
                                     <div className="flex justify-between text-xs text-slate-400">
-                                        <span>Precise</span>
-                                        <span>Creative</span>
+                                        <span>{t('precise')}</span>
+                                        <span>{t('creative')}</span>
                                     </div>
                                 </div>
                                 <div className="space-y-4">
                                     <div className="flex justify-between items-center mb-1">
                                         <label className="text-sm font-medium text-slate-700 flex items-center gap-1">
-                                            Top P
+                                            {t('topP')}
                                             <Icon name="info" className="text-slate-400 text-[16px] cursor-help" />
                                         </label>
                                         <span className="text-xs font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-600">{settings.top_p}</span>
@@ -207,8 +209,8 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
                                         className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary"
                                     />
                                     <div className="flex justify-between text-xs text-slate-400">
-                                        <span>Focused</span>
-                                        <span>Diverse</span>
+                                        <span>{t('focused')}</span>
+                                        <span>{t('diverse')}</span>
                                     </div>
                                 </div>
                             </div>
@@ -219,13 +221,13 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
                             <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
                                 <h3 className="text-lg font-bold flex items-center gap-2">
                                     <Icon name="tune" className="text-primary" />
-                                    Advanced Parameters
+                                    {t('advancedParameters')}
                                 </h3>
                             </div>
                             <div className="p-6 flex flex-col gap-5">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs font-medium text-slate-500 mb-1">Max Iterations</label>
+                                        <label className="block text-xs font-medium text-slate-500 mb-1">{t('maxIterations')}</label>
                                         <input
                                             type="number"
                                             value={settings.max_iterations}
@@ -234,7 +236,7 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium text-slate-500 mb-1">Context Limit</label>
+                                        <label className="block text-xs font-medium text-slate-500 mb-1">{t('contextLimit')}</label>
                                         <select
                                             value={settings.max_context_tokens}
                                             onChange={(e) => setSettings({ ...settings, max_context_tokens: parseInt(e.target.value) })}
@@ -258,32 +260,32 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
                             <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                                 <h3 className="text-lg font-bold flex items-center gap-2">
                                     <Icon name="key" className="text-primary" />
-                                    API Keys
+                                    {t('apiKeys')}
                                 </h3>
                             </div>
                             <div className="p-6 flex flex-col gap-6">
                                 {/* OpenRouter */}
                                 <div>
-                                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">OpenRouter API Key</label>
+                                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">{t('openRouterKey')}</label>
                                     <div className="relative">
                                         <input
                                             type="password"
-                                            placeholder={settings.openrouter_api_key_masked || "No key set"}
+                                            placeholder={settings.openrouter_api_key_masked || t('noKeySet')}
                                             value={openrouterKey}
                                             onChange={(e) => setOpenrouterKey(e.target.value)}
                                             className="w-full bg-emerald-50 border border-emerald-500/50 text-slate-900 text-sm rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block p-2.5"
                                         />
                                     </div>
-                                    <p className="text-[10px] text-slate-400 mt-1">Leave empty to keep current key</p>
+                                    <p className="text-[10px] text-slate-400 mt-1">{t('leaveEmptyToKeep')}</p>
                                 </div>
 
                                 {/* Serper */}
                                 <div>
-                                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Serper API Key</label>
+                                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">{t('serperKey')}</label>
                                     <div className="relative">
                                         <input
                                             type="password"
-                                            placeholder={settings.serper_api_key_masked || "No key set"}
+                                            placeholder={settings.serper_api_key_masked || t('noKeySet')}
                                             value={serperKey}
                                             onChange={(e) => setSerperKey(e.target.value)}
                                             className="w-full bg-blue-50 border border-blue-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"

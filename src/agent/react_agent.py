@@ -2,6 +2,7 @@
 
 import json
 import time
+import asyncio
 import re
 from typing import Dict, Any, List, Optional, Union
 from dataclasses import dataclass, field
@@ -255,57 +256,79 @@ class xSmartReactAgent:
                 return
             
             # 检查并执行工具调用
-            if self._has_tool_call(response):
-                # 提取工具名与参数用于状态提示
-                tool_match = re.search(r'<tool_call>(.*?)</tool_call>', response, re.DOTALL)
-                tool_name = "unknown"
-                tool_args = {}
-                if tool_match:
-                    try:
-                        import json5
-                        tc_json = json5.loads(tool_match.group(1).strip())
-                        tool_name = tc_json.get("name", "tool")
-                        tool_args = tc_json.get("arguments", {})
-                    except: pass
+            tool_calls = self._extract_tool_calls(response)
+            if tool_calls:
+                # 1. 产生 tool_start 事件
+                execution_tasks = []
+                tool_names = []
                 
-                yield {
-                    "type": "tool_start", 
-                    "content": f"Calling tool: {tool_name}", 
-                    "tool": tool_name,
-                    "arguments": tool_args,
-                    "iteration": iterations
-                }
-                
-                logger.info(f"🔧 Executing tool: {tool_name} with args: {tool_args}")
-                tool_result = await self._execute_tool_call(response)
-                
-                # 记录工具调用的详细信息
-                self.session_manager.add_message(
-                    self.current_session_id, 
-                    "tool", 
-                    f"Call: {tool_name}\nArgs: {json.dumps(tool_args, ensure_ascii=False)}\nResult: {tool_result}",
-                    metadata={"tool_name": tool_name, "args": tool_args}
-                )
+                for tc in tool_calls:
+                    tool_name = tc.get("name")
+                    tool_args = tc.get("arguments", {})
+                    
+                    yield {
+                        "type": "tool_start", 
+                        "content": f"Calling tool: {tool_name}", 
+                        "tool": tool_name,
+                        "arguments": tool_args,
+                        "iteration": iterations
+                    }
+                    
+                    logger.info(f"🔧 Check tool: {tool_name}")
+                    
+                    if tool_name in self.tools:
+                        logger.info(f"🔧 Executing tool (Parallel): {tool_name}")
+                        execution_tasks.append(self.tools[tool_name].call(tool_args))
+                        tool_names.append(tool_name)
+                    else:
+                        # 对于不存在的工具，我们创建一个直接返回错误的 mock task
+                        async def _not_found_task(t_name=tool_name):
+                            return f"[Error] Tool '{t_name}' not found. Available: {list(self.tools.keys())}"
+                        execution_tasks.append(_not_found_task())
+                        tool_names.append(tool_name)
 
-                # PERSIST: tool_response
-                self.session_manager.add_message(
-                    self.current_session_id,
-                    "tool_response",
-                    tool_result,
-                    metadata={"tool_name": tool_name}
-                )
+                # 2. 并行执行
+                if execution_tasks:
+                    results = await asyncio.gather(*execution_tasks)
+                    
+                    # 3. 处理结果并反馈
+                    combined_tool_outputs = []
+                    
+                    for i, result in enumerate(results):
+                        tool_name = tool_names[i]
+                        
+                        # 记录工具调用的详细信息
+                        self.session_manager.add_message(
+                            self.current_session_id, 
+                            "tool", 
+                            f"Call: {tool_name}\nResult Length: {len(str(result))}",
+                            metadata={"tool_name": tool_name}
+                        )
 
-                yield {
-                    "type": "tool_response", 
-                    "content": tool_result, 
-                    "tool": tool_name,
-                    "iteration": iterations
-                }
-                
-                messages.append({
-                    "role": "user",
-                    "content": f"{self.TOOL_RESPONSE_START}\n{tool_result}\n{self.TOOL_RESPONSE_END}"
-                })
+                        # PERSIST: tool_response
+                        self.session_manager.add_message(
+                            self.current_session_id,
+                            "tool_response",
+                            result,
+                            metadata={"tool_name": tool_name}
+                        )
+
+                        yield {
+                            "type": "tool_response", 
+                            "content": result, 
+                            "tool": tool_name,
+                            "iteration": iterations
+                        }
+                        
+                        combined_tool_outputs.append(f"Tool '{tool_name}' Output:\n{result}")
+
+                    # 将所有结果合并为一个 User Message 反馈给 LLM
+                    # 这样 LLM 可以一次性看到所有并行执行的结果
+                    full_response_content = "\n\n".join(combined_tool_outputs)
+                    messages.append({
+                        "role": "user",
+                        "content": f"{self.TOOL_RESPONSE_START}\n{full_response_content}\n{self.TOOL_RESPONSE_END}"
+                    })
             
             # 检查 token 限制
             token_count = self._count_tokens(messages)
@@ -391,58 +414,82 @@ class xSmartReactAgent:
         return bool(re.search(r'<tool_call>.*?</tool_call>', content, re.DOTALL)) or \
                bool(re.search(r'<tool_call>.*', content, re.DOTALL)) # 容错：允许未闭合标签
     
-    async def _execute_tool_call(self, content: str) -> str:
-        """解析并执行工具调用 (异步)"""
-        # 使用正则表达式提取工具调用内容，处理多种边界情况
-        patterns = [
-            r'<tool_call>\s*(.*?)\s*</tool_call>',
-            r'<tool_call>(.*?)(?:</tool_call>|$)', # 非贪婪匹配，防止吞掉后面的内容，并允许省略闭合标签
-        ]
+    def _extract_tool_calls(self, content: str) -> List[Dict[str, Any]]:
+        """从响应中提取所有工具调用"""
+        tool_calls = []
         
-        tool_call_str = ""
-        for pattern in patterns:
-            match = re.search(pattern, content, re.DOTALL)
-            if match:
-                tool_call_str = match.group(1).strip()
-                if tool_call_str: break
+        # 匹配所有 <tool_call>...</tool_call> 块
+        # 使用非贪婪匹配，并尽量匹配闭合标签
+        # 如果有多个不带换行符的 tool_call，正则可能需要调整，但通常 LLM 会换行
+        pattern = r'<tool_call>(.*?)</tool_call>'
+        matches = re.finditer(pattern, content, re.DOTALL)
         
-        if not tool_call_str:
-            return "[Error] No valid <tool_call> content found."
-
-        # 清理常见的幻觉标签
-        tool_call_str = tool_call_str.replace("</arg_value>", "").replace("<arg_value>", "")
-        tool_call_str = tool_call_str.replace("</tool_code>", "").replace("<tool_code>", "")
-
-        try:
-            # 尝试解析 JSON
-            import json5
+        for match in matches:
+            tool_call_str = match.group(1).strip()
+            # 清理常见幻觉
+            tool_call_str = tool_call_str.replace("</arg_value>", "").replace("<arg_value>", "")
+            tool_call_str = tool_call_str.replace("</tool_code>", "").replace("<tool_code>", "")
+            
             try:
-                tool_call_json = json5.loads(tool_call_str)
-            except:
-                # 简单修复：尝试平衡括号和处理引号
-                # 这里只是最简单的启发式修复
-                fixed_str = tool_call_str.strip()
-                if not fixed_str.endswith('}'): fixed_str += '}'
-                tool_call_json = json5.loads(fixed_str)
-            
-            tool_name = tool_call_json.get("name")
-            tool_args = tool_call_json.get("arguments", tool_call_json.get("parameters", {}))
-            
-            # 特殊处理 PythonInterpreter 快捷调用
-            if tool_name == "PythonInterpreter" and "code" not in tool_args and self.CODE_START in content:
-                code_start = content.find(self.CODE_START) + len(self.CODE_START)
-                code_end = content.find(self.CODE_END)
-                if code_end != -1:
-                    tool_args = content[code_start:code_end].strip()
-            
-            if tool_name in self.tools:
-                print(f"🔧 Tool Call: {tool_name}")
-                return await self.tools[tool_name].call(tool_args)
-            else:
-                return f"[Error] Tool '{tool_name}' not found. Available: {list(self.tools.keys())}"
+                import json5
+                try:
+                    tool_call_json = json5.loads(tool_call_str)
+                except:
+                    # 简单修复尝试
+                    fixed_str = tool_call_str.strip()
+                    if not fixed_str.endswith('}'): fixed_str += '}'
+                    tool_call_json = json5.loads(fixed_str)
                 
-        except Exception as e:
-            return f"[Error] Failed to parse tool call JSON: {tool_call_str[:200]}... Error: {str(e)}"
+                tool_name = tool_call_json.get("name")
+                tool_args = tool_call_json.get("arguments", tool_call_json.get("parameters", {}))
+                
+                if tool_name:
+                    tool_calls.append({
+                        "name": tool_name,
+                        "arguments": tool_args,
+                        "raw": tool_call_str
+                    })
+            except Exception as e:
+                logger.error(f"Failed to parse tool call: {tool_call_str[:50]}... Error: {e}")
+                
+        # 特殊处理：如果没找到闭合的 tool_call，尝试找未闭合的 (通常是流式输出中断或错误截断)
+        if not tool_calls and "<tool_call>" in content:
+            # 尝试提取最后一个未闭合的
+            last_start = content.rfind("<tool_call>")
+            potential_content = content[last_start + 11:].strip()
+            if potential_content:
+                try:
+                    import json5
+                    # 尝试补全并解析
+                    if not potential_content.endswith('}'): potential_content += '}'
+                    tool_call_json = json5.loads(potential_content)
+                    if tool_call_json.get("name"):
+                        tool_calls.append({
+                            "name": tool_call_json.get("name"),
+                            "arguments": tool_call_json.get("arguments", {}),
+                            "raw": potential_content
+                        })
+                except: pass
+
+        # 检查 PythonInterpreter 的 code 快捷方式
+        # 其实 xSmart 的 PythonInterpreter 并不总是用 <tool_call>，有时用 <code>
+        # 这里为了保持兼容性，还是保留 _execute_tool_call 里对 PythonInterpreter 的特殊逻辑吗？
+        # 不，_execute_tool_call 即将被废弃。我们需要在这里处理 <code> 块。
+        if self.CODE_START in content and self.CODE_END in content:
+             # 如果已经通过 tool_call 解析出了 PythonInterpreter 且有 code 参数，则不用重复
+             # 如果没有，则添加一个隐式的 PythonInterpreter 调用
+             has_pi = any(tc['name'] == 'PythonInterpreter' for tc in tool_calls)
+             if not has_pi:
+                 code_match = re.search(f"{re.escape(self.CODE_START)}(.*?){re.escape(self.CODE_END)}", content, re.DOTALL)
+                 if code_match:
+                     code_content = code_match.group(1).strip()
+                     tool_calls.append({
+                         "name": "PythonInterpreter",
+                         "arguments": code_content, # PythonInterpreter tool 接受 string 或 dict
+                         "raw": code_content
+                     })
+        
+        return tool_calls
     
     def _count_tokens(self, messages: List[Dict]) -> int:
         """计算消息的 token 数

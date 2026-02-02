@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { Icon } from '../components/Icon';
 import { ResearchService, ResearchHistoryItem } from '../services/api';
+import { LanguageContext } from '../App';
 
 export const HistoryScreen: React.FC<{ onSelect: (item: ResearchHistoryItem) => void }> = ({ onSelect }) => {
+  const { t } = useContext(LanguageContext);
   const [history, setHistory] = useState<ResearchHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,10 +28,10 @@ export const HistoryScreen: React.FC<{ onSelect: (item: ResearchHistoryItem) => 
     const now = new Date();
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-    if (diffInSeconds < 60) return 'Just now';
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
-    return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    if (diffInSeconds < 60) return t('justNow');
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}${t('minutes')} ${t('ago')}`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}${t('hours')} ${t('ago')}`;
+    return `${Math.floor(diffInSeconds / 86400)}${t('days')} ${t('ago')}`;
   };
 
   const getStatusColor = (status: string) => {
@@ -62,8 +64,8 @@ export const HistoryScreen: React.FC<{ onSelect: (item: ResearchHistoryItem) => 
       <header className="w-full px-6 py-5 md:px-10 border-b border-border-light bg-surface-light/80 backdrop-blur-md sticky top-0 z-10">
         <div className="flex justify-between items-center max-w-7xl mx-auto">
           <div className="flex flex-col gap-1">
-            <h2 className="text-2xl font-black tracking-tight text-slate-900">Research History</h2>
-            <p className="text-slate-500 text-sm">Manage and review your past research projects and agent activities.</p>
+            <h2 className="text-2xl font-black tracking-tight text-slate-900">{t('researchHistory')}</h2>
+            <p className="text-slate-500 text-sm">{t('manageHistoryDesc')}</p>
           </div>
           <button onClick={fetchHistory} className="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
             <Icon name="refresh" className={`text-slate-500 ${loading ? 'animate-spin' : ''}`} />
@@ -84,14 +86,14 @@ export const HistoryScreen: React.FC<{ onSelect: (item: ResearchHistoryItem) => 
               <input
                 type="text"
                 className="block w-full pl-10 pr-3 py-2.5 border-none rounded-lg leading-5 bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm shadow-sm"
-                placeholder="Search by keyword, topic, or agent..."
+                placeholder={t('searchPlaceholder')}
               />
             </div>
 
             <div className="flex flex-wrap gap-2 items-center">
               <button className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:border-primary/50 text-slate-700 text-sm font-medium transition-colors shadow-sm">
                 <Icon name="tune" className="text-[18px]" />
-                Status: All
+                {t('statusAll')}
                 <Icon name="expand_more" className="text-[18px]" />
               </button>
             </div>
@@ -99,7 +101,7 @@ export const HistoryScreen: React.FC<{ onSelect: (item: ResearchHistoryItem) => 
 
           {/* Grid */}
           {loading && history.length === 0 ? (
-            <div className="flex items-center justify-center h-64 text-slate-400">Loading history...</div>
+            <div className="flex items-center justify-center h-64 text-slate-400">{t('loading')}</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
 
@@ -148,7 +150,7 @@ export const HistoryScreen: React.FC<{ onSelect: (item: ResearchHistoryItem) => 
                       <Icon name="schedule" className="text-[14px]" />
                       {formatTimeAgo(item.created_at)}
                     </div>
-                    <span className="font-mono">{item.iterations} steps</span>
+                    <span className="font-mono">{item.iterations} {t('steps')}</span>
                   </div>
                 </div>
               ))}

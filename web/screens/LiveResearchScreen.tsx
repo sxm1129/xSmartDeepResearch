@@ -4,23 +4,19 @@ import { MarkdownViewer } from '../components/MarkdownViewer';
 import { ResearchService, ResearchEvent } from '../services/api';
 import { extractSourcesFromToolResponse, ResearchSource } from '../utils/sourceUtils';
 import { LanguageContext } from '../App';
-
-interface ReasoningStep {
-  type: 'status' | 'think' | 'tool';
-  content: string;
-  status: 'pending' | 'active' | 'completed';
-  toolName?: string;
-  timestamp: number;
-}
+import { useResearch } from '../contexts/ResearchContext';
 
 export const LiveResearchScreen: React.FC = () => {
   const { t } = useContext(LanguageContext);
-  const [query, setQuery] = useState("");
-  const [isResearching, setIsResearching] = useState(false);
-  const [reportContent, setReportContent] = useState("");
-  const [steps, setSteps] = useState<ReasoningStep[]>([]);
-  const [sources, setSources] = useState<ResearchSource[]>([]);
-  const [currentStepIndex, setCurrentStepIndex] = useState<number>(-1);
+  const {
+    query,
+    setQuery,
+    isResearching,
+    reportContent,
+    steps,
+    sources,
+    startResearch
+  } = useResearch();
 
   const reportEndRef = useRef<HTMLDivElement>(null);
   const stepsEndRef = useRef<HTMLDivElement>(null);
@@ -41,82 +37,7 @@ export const LiveResearchScreen: React.FC = () => {
   const handleSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!query.trim() || isResearching) return;
-
-    setIsResearching(true);
-    setReportContent("");
-    setSteps([]);
-    setSources([]);
-    setCurrentStepIndex(-1);
-
-    await ResearchService.streamResearch(query, (event: ResearchEvent) => {
-      handleEvent(event);
-    });
-
-    setIsResearching(false);
-  };
-
-  const handleEvent = (event: ResearchEvent) => {
-    // 1. Handle Status / Thinking
-    if (event.type === 'status' || event.type === 'think' || event.type === 'tool_start') {
-      setSteps(prev => {
-        const newSteps = [...prev];
-        // Mark previous as completed
-        if (newSteps.length > 0) {
-          newSteps[newSteps.length - 1].status = 'completed';
-        }
-
-        let content = event.content;
-        if (event.type === 'tool_start') {
-          content = `${t('usingTool')}: ${event.tool}...`;
-        }
-
-        newSteps.push({
-          type: event.type === 'tool_start' ? 'tool' : event.type as any,
-          content: content,
-          status: 'active',
-          toolName: event.tool,
-          timestamp: Date.now()
-        });
-        return newSteps;
-      });
-      setCurrentStepIndex(prev => prev + 1);
-    }
-    // 2. Handle Tool Response (Extract Sources)
-    else if (event.type === 'tool_response') {
-      const newSources = extractSourcesFromToolResponse(event.tool || '', event.content);
-      if (newSources.length > 0) {
-        setSources(prev => {
-          // Deduplicate by URL
-          const existingUrls = new Set(prev.map(s => s.url));
-          const uniqueNew = newSources.filter(s => !existingUrls.has(s.url));
-          return [...prev, ...uniqueNew];
-        });
-      }
-
-      // Update step content to show it finished
-      setSteps(prev => {
-        const newSteps = [...prev];
-        if (newSteps.length > 0) {
-          newSteps[newSteps.length - 1].status = 'completed';
-          newSteps[newSteps.length - 1].content += ` (Done)`;
-        }
-        return newSteps;
-      });
-    }
-    // 3. Handle Answer (Stream to Report)
-    else if (event.type === 'answer') {
-      // Append text
-      setReportContent(prev => prev + event.content);
-    }
-    // 4. Handle Final Answer
-    else if (event.type === 'final_answer') {
-      setIsResearching(false);
-    }
-    // 5. Handle Error
-    else if (event.type === 'error') {
-      setReportContent(prev => prev + `\n\n ** ${t('error')}:** ${event.content} `);
-      setIsResearching(false);
-    }
+    await startResearch(query, t);
   };
 
   return (
@@ -165,43 +86,83 @@ export const LiveResearchScreen: React.FC = () => {
           {/* Sidebar Area */}
           <div className="col-span-12 lg:col-span-3 flex flex-col gap-6 h-full overflow-hidden">
 
-            {/* Reasoning Chain */}
+            {/* Reasoning Chain - Enhanced */}
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col h-1/2 overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                  <Icon name="psychology" className="text-sm text-primary" />
+              <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/80 backdrop-blur-sm flex items-center justify-between sticky top-0 z-10">
+                <h3 className="text-xs font-bold text-slate-600 uppercase tracking-widest flex items-center gap-2 font-display">
+                  <div className="p-1.5 bg-indigo-50 rounded-md">
+                    <Icon name="psychology" className="text-sm text-indigo-600" />
+                  </div>
                   {t('reasoningChain')}
                 </h3>
-                {isResearching && <span className="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-medium">{t('active')}</span>}
+                <div className="flex items-center gap-2">
+                  {isResearching && (
+                    <span className="flex h-2 w-2 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                  )}
+                  <span className="text-[10px] font-medium text-slate-400 font-mono tracking-tight bg-slate-100 px-2 py-0.5 rounded-full shadow-sm">
+                    {steps.length} STEPS
+                  </span>
+                </div>
               </div>
-              <div className="p-0 overflow-y-auto flex-1 relative scroll-smooth">
-                <div className="absolute left-6 top-4 bottom-4 w-0.5 bg-slate-200"></div>
-                <ul className="space-y-0 py-4">
-                  {steps.map((step, idx) => (
-                    <li key={idx} className={`relative pl - 12 pr - 4 py - 2 group ${step.status === 'active' ? 'bg-blue-50/50' : ''} `}>
-                      <div className={`absolute left - 4 top - 3 w - 4 h - 4 rounded - full flex items - center justify - center z - 10 ${step.status === 'completed' ? 'bg-emerald-100 border-2 border-emerald-500' :
-                        step.status === 'active' ? 'bg-white border-2 border-primary animate-pulse' :
-                          'bg-slate-100 border-2 border-slate-300'
-                        } `}>
-                        {step.status === 'completed' && <Icon name="check" className="text-[10px] text-emerald-600 font-bold" />}
-                        {step.status === 'active' && <div className="w-1.5 h-1.5 bg-primary rounded-full"></div>}
-                      </div>
-                      <p className={`text - sm font - medium ${step.status === 'active' ? 'text-primary' : 'text-slate-700'} `}>
-                        {step.type === 'tool' ? `${t('usingTool')}: ${step.toolName} ` :
-                          step.type === 'think' ? t('thinking') : t('statusUpdate')}
-                      </p>
-                      <p className="text-xs text-slate-500 mt-0.5 line-clamp-3">
-                        {step.content}
-                      </p>
-                    </li>
-                  ))}
-                  <div ref={stepsEndRef} />
-                </ul>
-                {steps.length === 0 && !isResearching && (
-                  <div className="p-6 text-center text-slate-400 text-xs">
-                    {t('readyToStartReasoning')}
-                  </div>
-                )}
+              <div className="overflow-y-auto flex-1 p-0 scroll-smooth bg-slate-50/30">
+                <div className="space-y-0 relative pb-10">
+                  {/* Vertical Line Connector */}
+                  <div className="absolute left-6 top-0 bottom-0 w-px bg-slate-200/60 z-0"></div>
+                  <ul className="relative z-10 w-full">
+                    {steps.map((step, idx) => (
+                      <li key={idx} className={`relative pl-14 pr-4 py-3 group border-b border-slate-100/50 last:border-0 transition-colors duration-200 ${step.status === 'active' ? 'bg-indigo-50/40' : 'hover:bg-slate-50'}`}>
+                        {/* Timeline Dot */}
+                        <div className={`absolute left-4 top-3.5 w-4 h-4 rounded-full flex items-center justify-center z-10 ring-4 ring-white transition-all duration-300 ${step.status === 'completed' ? 'bg-emerald-500 shadow-sm' :
+                          step.status === 'active' ? 'bg-white border-2 border-indigo-500 shadow-indigo-100' :
+                            'bg-slate-200'
+                          } `}>
+                          {step.status === 'completed' && <Icon name="check" className="text-[10px] text-white font-bold" />}
+                          {step.status === 'active' && <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse"></div>}
+                        </div>
+
+                        {/* Header */}
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded leading-none ${step.type === 'tool' ? 'bg-purple-50 text-purple-600 border border-purple-100' :
+                            step.type === 'think' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                              'bg-slate-100 text-slate-600 border border-slate-200'
+                            }`}>
+                            {step.type === 'tool' ? 'TOOL' : step.type === 'think' ? 'THOUGHT' : 'SYSTEM'}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono opacity-60">
+                            {new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          </span>
+                        </div>
+
+                        {/* Title */}
+                        <p className={`text-xs font-semibold mb-1 truncate ${step.status === 'active' ? 'text-indigo-700' : 'text-slate-700'}`}>
+                          {step.type === 'tool' ? (
+                            <span className="font-mono text-[11px]">{step.toolName}<span className="opacity-50 text-slate-400 ml-1">()</span></span>
+                          ) : step.type === 'think' ? t('thinking') : t('statusUpdate')}
+                        </p>
+
+                        {/* Content */}
+                        <div className={`text-xs leading-relaxed font-mono ${step.status === 'active' ? 'text-slate-600' : 'text-slate-500'}`}>
+                          {step.type === 'tool' ? (
+                            <code className="bg-slate-100 px-1 py-0.5 rounded text-[10px] text-slate-600 break-all border border-slate-200">
+                              {step.content.length > 100 ? step.content.substring(0, 100) + '...' : step.content}
+                            </code>
+                          ) : (
+                            <span className="opacity-90">{step.content}</span>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                    <div ref={stepsEndRef} />
+                  </ul>
+                  {steps.length === 0 && !isResearching && (
+                    <div className="p-6 text-center text-slate-400 text-xs">
+                      {t('readyToStartReasoning')}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

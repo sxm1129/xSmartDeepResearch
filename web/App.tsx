@@ -10,6 +10,7 @@ import { SetupWizard } from './screens/SetupWizard';
 import { ErrorModal } from './components/ErrorModal';
 import { ResearchHistoryItem } from './services/api';
 import { Language, translations, TranslationKeys } from './utils/i18n';
+import { ResearchProvider } from './contexts/ResearchContext';
 
 // Language Context
 interface LanguageContextType {
@@ -93,22 +94,24 @@ const App: React.FC = () => {
 
   return (
     <LanguageContext.Provider value={{ language, setLanguage, t }}>
-      <div className="flex h-screen w-full bg-background-light">
-        <Sidebar
-          currentView={currentView}
-          isCollapsed={isSidebarCollapsed}
-          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          onChangeView={setCurrentView}
-          onNewResearch={() => setCurrentView(View.DASHBOARD)}
-        />
-        <main className="flex-1 min-w-0 h-full overflow-hidden relative">
-          {renderContent()}
-        </main>
+      <ResearchProvider>
+        <div className="flex h-screen w-full bg-background-light">
+          <Sidebar
+            currentView={currentView}
+            isCollapsed={isSidebarCollapsed}
+            onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            onChangeView={setCurrentView}
+            onNewResearch={() => setCurrentView(View.DASHBOARD)}
+          />
+          <main className="flex-1 min-w-0 h-full overflow-hidden relative">
+            {renderContent()}
+          </main>
 
-        {isErrorModalOpen && (
-          <ErrorModal onClose={() => setIsErrorModalOpen(false)} />
-        )}
-      </div>
+          {isErrorModalOpen && (
+            <ErrorModal onClose={() => setIsErrorModalOpen(false)} />
+          )}
+        </div>
+      </ResearchProvider>
     </LanguageContext.Provider>
   );
 };
