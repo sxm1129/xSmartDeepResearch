@@ -45,47 +45,39 @@ async def stream_research(
         agent = get_agent()
         agent.max_iterations = research_request.max_iterations
         
+        task_id = str(uuid.uuid4())[:8]
         try:
             # Create task record
-            task_id = str(uuid.uuid4())[:8]
             session_manager.create_research_task(
                 task_id=task_id,
                 question=research_request.question,
                 status=ResearchStatus.RUNNING
             )
 
-            # agent.stream_run 是同步生成器
-            final_result = None
-            for event in agent.stream_run(research_request.question):
-                # 检查客户端是否已断开
+            final_answer_data = None
+            async for event in agent.stream_run(research_request.question):
+                # Check client disconnection
                 if await request.is_disconnected():
                     logger.info("Client disconnected, stopping research stream.")
                     break
                 
-                # Capture result if event type is 'result' (assuming agent yields it)
-                # But typically agent yields dicts. We need to check structure.
-                # Assuming standard Agent events. 
-                # If event has answer, store it.
-                if isinstance(event, dict) and "prediction" in event: # Check your agent contract
-                     final_result = event
-
+                # Capture final result if yielded
+                if isinstance(event, dict) and event.get("type") == "final_answer":
+                    final_answer_data = event
+                
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-                # 给一点时间让IO发生，支持协程切换
                 await asyncio.sleep(0.01)
             
-            # Update task on completion (We need to capture the final result from the stream)
-            # Since stream_run yields events, we might not get the full Result object easily unless the last event is the result.
-            # Let's assume the agent emits a final event or we capture the answer.
-            # For xSmartReactAgent, stream_run usually yields steps.
-            # We might need to run agent.run() separately or refactor agent.stream_run to return result.
-            # However, for now, let's at least mark it as COMPLETED so it shows in history, 
-            # even if answer is incomplete (or we can capture it if possible).
+            # Update task on completion
+            update_data = {"status": ResearchStatus.COMPLETED}
+            if final_answer_data:
+                update_data.update({
+                    "answer": final_answer_data.get("content", ""),
+                    "iterations": final_answer_data.get("iterations", 0),
+                    "termination_reason": final_answer_data.get("termination", "answer")
+                })
             
-            # Since we can't easily capture the return value of the generator, we might just update status.
-            session_manager.update_research_task(task_id, {
-                "status": ResearchStatus.COMPLETED,
-                # "answer": ... # Needs update if we can capture it
-            })
+            session_manager.update_research_task(task_id, update_data)
 
         except Exception as e:
             logger.error(f"Stream research failed: {e}")
@@ -120,7 +112,7 @@ async def create_research(
         agent.max_iterations = request.max_iterations
         
         # 执行研究
-        result = agent.run(request.question)
+        result = await agent.run(request.question)
         
         return ResearchResponse(
             task_id=task_id,
@@ -181,10 +173,7 @@ async def _run_research_task(task_id: str, request: ResearchRequest):
         
         # 在线程池中执行同步代码
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            None,
-            lambda: agent.run(request.question)
-        )
+        result = await agent.run(request.question)
         
         session_manager.update_research_task(task_id, {
             "status": ResearchStatus.COMPLETED,
@@ -200,30 +189,6 @@ async def _run_research_task(task_id: str, request: ResearchRequest):
             "answer": f"Error: {str(e)}",
             "termination_reason": "error"
         })
-
-
-@router.get("/{task_id}", response_model=ResearchResponse)
-async def get_research_result(task_id: str):
-    """
-    获取研究任务结果
-    
-    根据任务ID查询研究结果。
-    """
-    task = session_manager.get_research_task(task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
-    
-    return ResearchResponse(
-        task_id=task_id,
-        question=task["question"],
-        answer=task.get("answer") or "",
-        status=task["status"],
-        iterations=task.get("iterations", 0),
-        execution_time=task.get("execution_time", 0),
-        termination_reason=task.get("termination_reason") or "",
-        created_at=task.get("created_at"),
-        is_bookmarked=task.get("is_bookmarked") or False
-    )
 
 
 @router.get("/history", response_model=List[ResearchResponse])
@@ -248,6 +213,30 @@ async def list_research_history():
         ))
     
     return history
+
+
+@router.get("/{task_id}", response_model=ResearchResponse)
+async def get_research_result(task_id: str):
+    """
+    获取研究任务结果
+    
+    根据任务ID查询研究结果。
+    """
+    task = session_manager.get_research_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+    
+    return ResearchResponse(
+        task_id=task_id,
+        question=task["question"],
+        answer=task.get("answer") or "",
+        status=task["status"],
+        iterations=task.get("iterations", 0),
+        execution_time=task.get("execution_time", 0),
+        termination_reason=task.get("termination_reason") or "",
+        created_at=task.get("created_at"),
+        is_bookmarked=task.get("is_bookmarked") or False
+    )
 
 
 @router.get("/{task_id}/status", response_model=TaskStatus)

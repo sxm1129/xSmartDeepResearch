@@ -1,8 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useContext } from 'react';
 import { Icon } from '../components/Icon';
+import { MarkdownViewer } from '../components/MarkdownViewer';
 import { ResearchService, ResearchEvent } from '../services/api';
 import { extractSourcesFromToolResponse, ResearchSource } from '../utils/sourceUtils';
-// Optional: import ReactMarkdown if available, or just use whitespace-pre-wrap
+import { LanguageContext } from '../App';
 
 interface ReasoningStep {
   type: 'status' | 'think' | 'tool';
@@ -13,6 +14,7 @@ interface ReasoningStep {
 }
 
 export const LiveResearchScreen: React.FC = () => {
+  const { t } = useContext(LanguageContext);
   const [query, setQuery] = useState("");
   const [isResearching, setIsResearching] = useState(false);
   const [reportContent, setReportContent] = useState("");
@@ -65,7 +67,7 @@ export const LiveResearchScreen: React.FC = () => {
 
         let content = event.content;
         if (event.type === 'tool_start') {
-          content = `Using tool: ${event.tool}...`;
+          content = `${t('usingTool')}: ${event.tool}...`;
         }
 
         newSteps.push({
@@ -112,7 +114,7 @@ export const LiveResearchScreen: React.FC = () => {
     }
     // 5. Handle Error
     else if (event.type === 'error') {
-      setReportContent(prev => prev + `\n\n**Error:** ${event.content}`);
+      setReportContent(prev => prev + `\n\n ** ${t('error')}:** ${event.content} `);
       setIsResearching(false);
     }
   };
@@ -131,7 +133,7 @@ export const LiveResearchScreen: React.FC = () => {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary sm:text-sm transition-shadow shadow-sm"
-              placeholder="Enter a research topic..."
+              placeholder={t('enterTopic')}
               disabled={isResearching}
             />
           </form>
@@ -139,18 +141,18 @@ export const LiveResearchScreen: React.FC = () => {
 
         <div className="flex items-center gap-6 ml-6">
           <div className="hidden md:flex flex-col items-end">
-            <div className={`flex items-center gap-1.5 text-xs font-medium ${isResearching ? 'text-emerald-600' : 'text-slate-500'}`}>
+            <div className={`flex items - center gap - 1.5 text - xs font - medium ${isResearching ? 'text-emerald-600' : 'text-slate-500'} `}>
               <span className="relative flex h-2 w-2">
                 {isResearching && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
-                <span className={`relative inline-flex rounded-full h-2 w-2 ${isResearching ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+                <span className={`relative inline - flex rounded - full h - 2 w - 2 ${isResearching ? 'bg-emerald-500' : 'bg-slate-400'} `}></span>
               </span>
-              {isResearching ? 'DeepResearch Running' : 'Ready'}
+              {isResearching ? t('deepResearchRunning') : t('ready')}
             </div>
           </div>
           {isResearching && (
             <button className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
               <Icon name="stop_circle" className="text-sm" />
-              Stop
+              {t('stop')}
             </button>
           )}
         </div>
@@ -168,25 +170,25 @@ export const LiveResearchScreen: React.FC = () => {
               <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                   <Icon name="psychology" className="text-sm text-primary" />
-                  Reasoning Chain
+                  {t('reasoningChain')}
                 </h3>
-                {isResearching && <span className="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-medium">Active</span>}
+                {isResearching && <span className="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-medium">{t('active')}</span>}
               </div>
               <div className="p-0 overflow-y-auto flex-1 relative scroll-smooth">
                 <div className="absolute left-6 top-4 bottom-4 w-0.5 bg-slate-200"></div>
                 <ul className="space-y-0 py-4">
                   {steps.map((step, idx) => (
-                    <li key={idx} className={`relative pl-12 pr-4 py-2 group ${step.status === 'active' ? 'bg-blue-50/50' : ''}`}>
-                      <div className={`absolute left-4 top-3 w-4 h-4 rounded-full flex items-center justify-center z-10 ${step.status === 'completed' ? 'bg-emerald-100 border-2 border-emerald-500' :
-                          step.status === 'active' ? 'bg-white border-2 border-primary animate-pulse' :
-                            'bg-slate-100 border-2 border-slate-300'
-                        }`}>
+                    <li key={idx} className={`relative pl - 12 pr - 4 py - 2 group ${step.status === 'active' ? 'bg-blue-50/50' : ''} `}>
+                      <div className={`absolute left - 4 top - 3 w - 4 h - 4 rounded - full flex items - center justify - center z - 10 ${step.status === 'completed' ? 'bg-emerald-100 border-2 border-emerald-500' :
+                        step.status === 'active' ? 'bg-white border-2 border-primary animate-pulse' :
+                          'bg-slate-100 border-2 border-slate-300'
+                        } `}>
                         {step.status === 'completed' && <Icon name="check" className="text-[10px] text-emerald-600 font-bold" />}
                         {step.status === 'active' && <div className="w-1.5 h-1.5 bg-primary rounded-full"></div>}
                       </div>
-                      <p className={`text-sm font-medium ${step.status === 'active' ? 'text-primary' : 'text-slate-700'}`}>
-                        {step.type === 'tool' ? `Tool: ${step.toolName}` :
-                          step.type === 'think' ? 'Thinking...' : 'Status Update'}
+                      <p className={`text - sm font - medium ${step.status === 'active' ? 'text-primary' : 'text-slate-700'} `}>
+                        {step.type === 'tool' ? `${t('usingTool')}: ${step.toolName} ` :
+                          step.type === 'think' ? t('thinking') : t('statusUpdate')}
                       </p>
                       <p className="text-xs text-slate-500 mt-0.5 line-clamp-3">
                         {step.content}
@@ -197,7 +199,7 @@ export const LiveResearchScreen: React.FC = () => {
                 </ul>
                 {steps.length === 0 && !isResearching && (
                   <div className="p-6 text-center text-slate-400 text-xs">
-                    Ready to start reasoning.
+                    {t('readyToStartReasoning')}
                   </div>
                 )}
               </div>
@@ -208,9 +210,9 @@ export const LiveResearchScreen: React.FC = () => {
               <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                   <Icon name="link" className="text-sm text-indigo-500" />
-                  Sources
+                  {t('sources')}
                 </h3>
-                <span className="text-[10px] text-slate-400">{sources.length} Found</span>
+                <span className="text-[10px] text-slate-400">{sources.length} {t('found')}</span>
               </div>
               <div className="p-3 overflow-y-auto flex-1 space-y-3 bg-slate-50/30">
                 {sources.map((source, idx) => (
@@ -227,7 +229,7 @@ export const LiveResearchScreen: React.FC = () => {
                 ))}
                 {sources.length === 0 && (
                   <div className="p-6 text-center text-slate-400 text-xs">
-                    No sources found yet.
+                    {t('noSourcesFound')}
                   </div>
                 )}
               </div>
@@ -243,7 +245,7 @@ export const LiveResearchScreen: React.FC = () => {
                 <div className="flex items-center gap-4">
                   <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                     <Icon name="auto_awesome" className="text-primary text-base" />
-                    Live Research Report
+                    {t('liveResearchReport')}
                   </h2>
                 </div>
               </div>
@@ -253,7 +255,7 @@ export const LiveResearchScreen: React.FC = () => {
                 {isResearching && (
                   <div className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary rounded-full text-xs font-medium animate-pulse">
                     <Icon name="refresh" className="text-sm animate-spin" />
-                    Generating insights...
+                    {t('generatingInsights')}
                   </div>
                 )}
 
@@ -261,7 +263,7 @@ export const LiveResearchScreen: React.FC = () => {
                   {reportContent || (
                     <div className="flex flex-col items-center justify-center h-64 text-slate-400">
                       <Icon name="science" className="text-6xl mb-4 opacity-20" />
-                      <p>Enter a topic above to begin research.</p>
+                      <p>{t('startTopicAbove')}</p>
                     </div>
                   )}
                   <div ref={reportEndRef} />

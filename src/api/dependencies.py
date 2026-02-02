@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import Dict, Any
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from config import settings
 from src.agent import xSmartReactAgent
@@ -15,9 +15,9 @@ _agent_instance = None
 
 
 @lru_cache()
-def get_openai_client() -> OpenAI:
+def get_openai_client() -> AsyncOpenAI:
     """获取 OpenAI 客户端单例"""
-    return OpenAI(
+    return AsyncOpenAI(
         api_key=settings.openrouter_key or settings.api_key,
         base_url=settings.api_base,
         timeout=600.0,
@@ -29,9 +29,9 @@ def get_openai_client() -> OpenAI:
 
 
 @lru_cache()
-def get_summary_client() -> OpenAI:
+def get_summary_client() -> AsyncOpenAI:
     """获取摘要用 OpenAI 客户端"""
-    return OpenAI(
+    return AsyncOpenAI(
         api_key=settings.openrouter_key or settings.api_key,
         base_url=settings.api_base,
         timeout=60.0

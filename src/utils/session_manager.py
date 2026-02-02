@@ -237,13 +237,10 @@ class SessionManager:
         try:
             conn = self._get_connection(self.db_name)
             cursor = conn.cursor()
-            
-            # Cascade delete should handle messages, but explicit is safe
-            cursor.execute("DELETE FROM messages WHERE session_id = %s", (session_id,))
             cursor.execute("DELETE FROM sessions WHERE id = %s", (session_id,))
-            
             conn.commit()
             conn.close()
+        except Exception as e:
             logger.error(f"Failed to delete session {session_id}: {e}")
 
     # --- Research Task Management ---

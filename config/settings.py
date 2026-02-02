@@ -15,8 +15,8 @@ class Settings(BaseSettings):
     # ==========================================================================
     serper_api_key: str = Field(default="", env="SERPER_API_KEY")
     jina_api_key: str = Field(default="", env="JINA_API_KEY")
-    api_key: str = Field(default="", env="API_KEY")
-    openrouter_key: str = Field(default="", env="OPENROUTER_KEY")
+    api_key: str = Field(default="", env="API_KEY") # Legacy fallback
+    openrouter_key: str = Field(default="", env="OPENROUTER_KEY") # Primary LLM Key
     api_base: str = Field(default="https://openrouter.ai/api/v1", env="API_BASE")
     dashscope_api_key: str = Field(default="", env="DASHSCOPE_API_KEY")
     

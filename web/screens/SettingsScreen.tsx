@@ -9,14 +9,14 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
         top_p: 0.9,
         max_iterations: 10,
         max_context_tokens: 32000,
-        openai_api_key_masked: '',
+        openrouter_api_key_masked: '',
         serper_api_key_masked: ''
     });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
     // Local state for inputs to allow editing
-    const [openaiKey, setOpenaiKey] = useState('');
+    const [openrouterKey, setOpenrouterKey] = useState('');
     const [serperKey, setSerperKey] = useState('');
 
     useEffect(() => {
@@ -45,12 +45,12 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
                 max_context_tokens: settings.max_context_tokens
             };
 
-            if (openaiKey) update.openai_api_key = openaiKey;
+            if (openrouterKey) update.openrouter_api_key = openrouterKey;
             if (serperKey) update.serper_api_key = serperKey;
 
             const newSettings = await ResearchService.updateSettings(update);
             setSettings(newSettings);
-            setOpenaiKey(''); // Clear after save
+            setOpenrouterKey(''); // Clear after save
             setSerperKey('');
             alert('Settings saved successfully!');
         } catch (e) {
@@ -103,9 +103,10 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
                                             value={settings.model_name}
                                             onChange={(e) => setSettings({ ...settings, model_name: e.target.value })}
                                             className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-primary focus:border-primary block p-3 pr-10 appearance-none">
-                                            <option value="gpt-4o">GPT-4o (OpenAI)</option>
-                                            <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                                            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                                            <option value="gpt-4o">GPT-4o (OpenRouter)</option>
+                                            <option value="openai/gpt-4o-mini">GPT-4o Mini (OpenRouter)</option>
+                                            <option value="z-ai/glm-4.7-flash">GLM-4.7 Flash (OpenRouter)</option>
+                                            <option value="deepseek/deepseek-chat">DeepSeek Chat (OpenRouter)</option>
                                         </select>
                                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
                                             <Icon name="expand_more" className="text-sm" />
@@ -200,15 +201,15 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
                                 </h3>
                             </div>
                             <div className="p-6 flex flex-col gap-6">
-                                {/* OpenAI */}
+                                {/* OpenRouter */}
                                 <div>
-                                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">OpenAI API Key</label>
+                                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">OpenRouter API Key</label>
                                     <div className="relative">
                                         <input
                                             type="password"
-                                            placeholder={settings.openai_api_key_masked || "No key set"}
-                                            value={openaiKey}
-                                            onChange={(e) => setOpenaiKey(e.target.value)}
+                                            placeholder={settings.openrouter_api_key_masked || "No key set"}
+                                            value={openrouterKey}
+                                            onChange={(e) => setOpenrouterKey(e.target.value)}
                                             className="w-full bg-emerald-50 border border-emerald-500/50 text-slate-900 text-sm rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block p-2.5"
                                         />
                                     </div>

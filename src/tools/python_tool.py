@@ -61,8 +61,8 @@ print(f"The result is: {np.mean([1,2,3])}")
         self.timeout = timeout
         self.max_retries = max_retries
     
-    def call(self, params: Union[str, Dict[str, Any]], **kwargs) -> str:
-        """执行 Python 代码
+    async def call(self, params: Union[str, Dict[str, Any]], **kwargs) -> str:
+        """异步执行 Python 代码
         
         Args:
             params: 代码字符串或包含代码的参数

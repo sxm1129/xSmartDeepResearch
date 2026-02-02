@@ -43,6 +43,7 @@ class ResearchResponse(BaseModel):
     execution_time: float = Field(default=0.0, description="执行时间(秒)")
     termination_reason: str = Field(default="", description="终止原因")
     created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
+    is_bookmarked: bool = Field(default=False, description="是否收藏")
     
     class Config:
         json_schema_extra = {

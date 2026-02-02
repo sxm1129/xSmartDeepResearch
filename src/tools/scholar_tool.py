@@ -40,8 +40,8 @@ class ScholarTool(BaseTool):
         self.api_key = api_key or self.cfg.get("api_key", "")
         self.base_host = "google.serper.dev"
     
-    def call(self, params: Union[str, Dict[str, Any]], **kwargs) -> str:
-        """执行学术搜索
+    async def call(self, params: Union[str, Dict[str, Any]], **kwargs) -> str:
+        """异步执行学术搜索
         
         Args:
             params: 包含 query 字段的参数
@@ -61,45 +61,37 @@ class ScholarTool(BaseTool):
         
         # 处理单个查询或多个查询
         if isinstance(query, str):
-            return self._search_single(query)
+            query = [query]
         
-        # 多个查询 - 并行执行
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            results = list(executor.map(self._search_single, query))
+        # 多个查询 - 异步并行执行
+        import asyncio
+        tasks = [self._search_single_async(q) for q in query]
+        results = await asyncio.gather(*tasks)
         
         return "\n=======\n".join(results)
     
-    def _search_single(self, query: str) -> str:
-        """执行单个学术搜索查询
-        
-        Args:
-            query: 搜索查询
-            
-        Returns:
-            格式化的搜索结果
-        """
+    async def _search_single_async(self, query: str) -> str:
+        """异步执行单个学术搜索查询"""
+        import aiohttp
         payload = {"q": query}
-        
         headers = {
             'X-API-KEY': self.api_key,
             'Content-Type': 'application/json'
         }
         
-        # 请求重试
         for attempt in range(5):
             try:
-                conn = http.client.HTTPSConnection(self.base_host)
-                conn.request("POST", "/scholar", json.dumps(payload), headers)
-                res = conn.getresponse()
-                data = res.read()
-                conn.close()
-                
-                results = json.loads(data.decode("utf-8"))
-                return self._format_results(query, results)
-                
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(f"https://{self.base_host}/scholar", headers=headers, json=payload, timeout=30) as response:
+                        if response.status == 200:
+                            results = await response.json()
+                            return self._format_results(query, results)
+                        else:
+                            return f"Google Scholar API error: {response.status}"
             except Exception as e:
                 if attempt == 4:
-                    return f"Google Scholar Timeout for '{query}'. Please try again later."
+                    return f"Google Scholar Timeout for '{query}'. Error: {str(e)}"
+                await asyncio.sleep(0.5)
                 continue
         
         return f"Google Scholar search failed for '{query}'"

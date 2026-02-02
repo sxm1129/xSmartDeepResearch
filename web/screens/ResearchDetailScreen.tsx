@@ -1,7 +1,7 @@
 import React from 'react';
 import { Icon } from '../components/Icon';
-import { ResearchHistoryItem } from '../services/api';
-import ReactMarkdown from 'react-markdown';
+import { MarkdownViewer } from '../components/MarkdownViewer';
+import { ResearchHistoryItem, ResearchService } from '../services/api';
 
 interface ResearchDetailScreenProps {
     item: ResearchHistoryItem;
@@ -85,8 +85,8 @@ export const ResearchDetailScreen: React.FC<ResearchDetailScreenProps> = ({ item
             <div className="flex-1 overflow-y-auto p-6 md:p-10">
                 <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-sm border border-slate-100 p-8 min-h-[500px]">
                     {item.answer ? (
-                        <div className="prose prose-slate max-w-none">
-                            <ReactMarkdown>{item.answer}</ReactMarkdown>
+                        <div className="flex-1 overflow-y-auto">
+                            <MarkdownViewer content={item.answer} />
                         </div>
                     ) : (
                         <div className="flex flex-col items-center justify-center py-20 text-slate-400">

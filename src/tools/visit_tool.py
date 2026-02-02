@@ -68,8 +68,8 @@ class VisitTool(BaseTool):
             self._encoding = tiktoken.get_encoding("cl100k_base")
         return self._encoding
     
-    def call(self, params: Union[str, Dict[str, Any]], **kwargs) -> str:
-        """同步执行网页访问
+    async def call(self, params: Union[str, Dict[str, Any]], **kwargs) -> str:
+        """异步执行网页访问
         
         Args:
             params: 包含 url 和 goal 的参数
@@ -77,8 +77,7 @@ class VisitTool(BaseTool):
         Returns:
             网页摘要结果
         """
-        # 在同步方法中运行异步方法
-        return asyncio.run(self.acall(params, **kwargs))
+        return await self.acall(params, **kwargs)
     
     async def acall(self, params: Union[str, Dict[str, Any]], **kwargs) -> str:
         """异步执行网页访问 (支持并行)"""
@@ -225,17 +224,11 @@ class VisitTool(BaseTool):
             prompt = build_extractor_prompt(content, goal)
         
         try:
-            # 使用异步方式调用 (如果 summary_client 支持异步，通常 OpenAI 客户端有异步版)
-            # 这里先保持同步调用以兼容现有 client，但在线程池运行
-            def call_sync():
-                return self.summary_client.chat.completions.create(
-                    model=self.summary_model,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.3 if is_reduction else 0.7
-                )
-            
-            loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(None, call_sync)
+            response = await self.summary_client.chat.completions.create(
+                model=self.summary_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3 if is_reduction else 0.7
+            )
             raw = response.choices[0].message.content
             
             # 解析JSON响应

@@ -26,10 +26,10 @@ export interface Settings {
     top_p: number;
     max_iterations: number;
     max_context_tokens: number;
-    openai_api_key?: string;
+    openrouter_api_key?: string;
     serper_api_key?: string;
-    openai_api_key_masked?: string;
-    serper_api_key_masked?: string;
+    openrouter_api_key_masked: string;
+    serper_api_key_masked: string;
 }
 
 export type SettingsUpdate = Partial<Settings>;

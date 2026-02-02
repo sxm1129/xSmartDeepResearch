@@ -9,11 +9,31 @@ import { SavedReportsScreen } from './screens/SavedReportsScreen';
 import { SetupWizard } from './screens/SetupWizard';
 import { ErrorModal } from './components/ErrorModal';
 import { ResearchHistoryItem } from './services/api';
+import { Language, translations, TranslationKeys } from './utils/i18n';
+
+// Language Context
+interface LanguageContextType {
+  language: Language;
+  setLanguage: (lang: Language) => void;
+  t: (key: TranslationKeys) => string;
+}
+
+export const LanguageContext = React.createContext<LanguageContextType>({
+  language: 'en',
+  setLanguage: () => { },
+  t: (key) => translations.en[key] as string,
+});
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(View.HISTORY);
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
   const [selectedResearch, setSelectedResearch] = useState<ResearchHistoryItem | null>(null);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [language, setLanguage] = useState<Language>('en');
+
+  const t = (key: TranslationKeys): string => {
+    return (translations[language] as any)[key] || (translations.en as any)[key] || key;
+  };
 
   const handleHistorySelect = (item: ResearchHistoryItem) => {
     setSelectedResearch(item);
@@ -72,20 +92,24 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen w-full bg-background-light">
-      <Sidebar
-        currentView={currentView}
-        onChangeView={setCurrentView}
-        onNewResearch={() => setCurrentView(View.DASHBOARD)}
-      />
-      <main className="flex-1 min-w-0 h-full overflow-hidden relative">
-        {renderContent()}
-      </main>
+    <LanguageContext.Provider value={{ language, setLanguage, t }}>
+      <div className="flex h-screen w-full bg-background-light">
+        <Sidebar
+          currentView={currentView}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          onChangeView={setCurrentView}
+          onNewResearch={() => setCurrentView(View.DASHBOARD)}
+        />
+        <main className="flex-1 min-w-0 h-full overflow-hidden relative">
+          {renderContent()}
+        </main>
 
-      {isErrorModalOpen && (
-        <ErrorModal onClose={() => setIsErrorModalOpen(false)} />
-      )}
-    </div>
+        {isErrorModalOpen && (
+          <ErrorModal onClose={() => setIsErrorModalOpen(false)} />
+        )}
+      </div>
+    </LanguageContext.Provider>
   );
 };
 

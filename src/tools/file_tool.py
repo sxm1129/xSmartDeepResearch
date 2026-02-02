@@ -53,8 +53,8 @@ class FileParserTool(BaseTool):
         self.file_root_path = file_root_path
         self.max_content_length = max_content_length
     
-    def call(self, params: Union[str, Dict[str, Any]], **kwargs) -> str:
-        """解析文件
+    async def call(self, params: Union[str, Dict[str, Any]], **kwargs) -> str:
+        """异步解析文件
         
         Args:
             params: 包含 files 字段的参数

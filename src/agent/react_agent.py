@@ -7,7 +7,7 @@ from typing import Dict, Any, List, Optional, Union
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from config import settings, build_system_prompt, FORCE_SUMMARIZE_PROMPT
 from src.tools import BaseTool, ToolRegistry
@@ -60,7 +60,7 @@ class xSmartReactAgent:
     
     def __init__(
         self,
-        client: OpenAI = None,
+        client: AsyncOpenAI = None,
         model: str = None,
         tools: List[BaseTool] = None,
         max_iterations: int = None,
@@ -71,22 +71,10 @@ class xSmartReactAgent:
         timeout_minutes: int = 150,
         classifier_model: str = "gpt-4o-mini"
     ):
-        """初始化 ReAct Agent
-        
-        Args:
-            client: OpenAI 兼容的客户端
-            model: 模型名称
-            tools: 工具列表
-            max_iterations: 最大迭代次数
-            max_tokens: 最大上下文 token 数
-            temperature: 采样温度
-            top_p: nucleus 采样参数
-            presence_penalty: 存在惩罚
-            timeout_minutes: 超时分钟数
-        """
+        """初始化 ReAct Agent"""
         # 客户端配置
-        self.client = client or OpenAI(
-            api_key=settings.api_key,
+        self.client = client or AsyncOpenAI(
+            api_key=settings.openrouter_key or settings.api_key,
             base_url=settings.api_base,
             timeout=600.0
         )
@@ -133,8 +121,8 @@ class xSmartReactAgent:
         """
         self.tools[tool.name] = tool
     
-    def run(self, question: str, ground_truth: str = "") -> ResearchResult:
-        """执行研究任务 (同步版本)"""
+    async def run(self, question: str, ground_truth: str = "") -> ResearchResult:
+        """执行研究任务 (异步版本)"""
         start_time = time.time()
         
         # 使用生成器运行并累积结果
@@ -143,7 +131,7 @@ class xSmartReactAgent:
         iterations = 0
         termination = "unknown"
         
-        for event in self.stream_run(question):
+        async for event in self.stream_run(question):
             event_type = event.get("type")
             
             if event_type == "final_answer":
@@ -168,7 +156,7 @@ class xSmartReactAgent:
             iterations=iterations
         )
 
-    def stream_run(self, question: str):
+    async def stream_run(self, question: str):
         """执行研究任务 (流式生成器版本)
         
         Yields:
@@ -182,7 +170,7 @@ class xSmartReactAgent:
         if self.current_session_id:
              self.session_manager.add_message(self.current_session_id, "status", "🔍 Identifying research intent...")
 
-        intent = self.classifier.classify(question)
+        intent = await self.classifier.aclassify(question)
         category = intent.get("category", "general")
         reason = intent.get("reason", "")
         status_msg = f"🎯 Intent: **{category.upper()}** ({reason})"
@@ -223,7 +211,7 @@ class xSmartReactAgent:
             self.session_manager.add_message(self.current_session_id, "status", f"Iteration {iterations}...")
             
             # 调用 LLM
-            response = self._call_llm(messages)
+            response = await self._call_llm(messages)
             
             if self.TOOL_RESPONSE_START in response:
                 pos = response.find(self.TOOL_RESPONSE_START)
@@ -289,7 +277,7 @@ class xSmartReactAgent:
                 }
                 
                 logger.info(f"🔧 Executing tool: {tool_name} with args: {tool_args}")
-                tool_result = self._execute_tool_call(response)
+                tool_result = await self._execute_tool_call(response)
                 
                 # 记录工具调用的详细信息
                 self.session_manager.add_message(
@@ -331,7 +319,7 @@ class xSmartReactAgent:
                 else:
                     yield {"type": "status", "content": "Token limit reached, forcing final summary..."}
                     self.session_manager.add_message(self.current_session_id, "status", "Token limit reached, forcing final summary...")
-                    res = self._force_summarize(messages, question, "", start_time, iterations)
+                    res = await self._force_summarize(messages, question, "", start_time, iterations)
                     yield {"type": "answer", "content": res.prediction}
                     yield {
                         "type": "final_answer", 
@@ -352,21 +340,13 @@ class xSmartReactAgent:
         }
 
     
-    def _call_llm(self, messages: List[Dict], max_retries: int = 10) -> str:
-        """调用 LLM
-        
-        Args:
-            messages: 消息历史
-            max_retries: 最大重试次数
-            
-        Returns:
-            LLM 响应内容
-        """
+    async def _call_llm(self, messages: List[Dict], max_retries: int = 10) -> str:
+        """调用 LLM (异步)"""
         base_sleep_time = 1
         
         for attempt in range(max_retries):
             try:
-                response = self.client.chat.completions.create(
+                response = await self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,
                     stop=[f"\n{self.TOOL_RESPONSE_START}", self.TOOL_RESPONSE_START],
@@ -411,9 +391,8 @@ class xSmartReactAgent:
         return bool(re.search(r'<tool_call>.*?</tool_call>', content, re.DOTALL)) or \
                bool(re.search(r'<tool_call>.*', content, re.DOTALL)) # 容错：允许未闭合标签
     
-    def _execute_tool_call(self, content: str) -> str:
-        """解析并执行工具调用"""
-        # 使用正则表达式提取工具调用内容，处理多种边界情况
+    async def _execute_tool_call(self, content: str) -> str:
+        """解析并执行工具调用 (异步)"""
         # 使用正则表达式提取工具调用内容，处理多种边界情况
         patterns = [
             r'<tool_call>\s*(.*?)\s*</tool_call>',
@@ -458,7 +437,7 @@ class xSmartReactAgent:
             
             if tool_name in self.tools:
                 print(f"🔧 Tool Call: {tool_name}")
-                return self.tools[tool_name].call(tool_args)
+                return await self.tools[tool_name].call(tool_args)
             else:
                 return f"[Error] Tool '{tool_name}' not found. Available: {list(self.tools.keys())}"
                 
@@ -483,7 +462,7 @@ class xSmartReactAgent:
         tokens = self.tokenizer.encode(full_text)
         return len(tokens)
     
-    def _force_summarize(
+    async def _force_summarize(
         self, 
         messages: List[Dict],
         question: str,
@@ -491,23 +470,12 @@ class xSmartReactAgent:
         start_time: float,
         iterations: int
     ) -> ResearchResult:
-        """强制总结（token 超限时使用）
-        
-        Args:
-            messages: 当前消息历史
-            question: 原始问题
-            ground_truth: 参考答案
-            start_time: 开始时间
-            iterations: 已迭代次数
-            
-        Returns:
-            研究结果
-        """
+        """强制总结（token 超限时使用）"""
         # 添加强制总结提示
         messages[-1]["content"] = FORCE_SUMMARIZE_PROMPT
         
         # 再次调用 LLM
-        response = self._call_llm(messages)
+        response = await self._call_llm(messages)
         messages.append({"role": "assistant", "content": response.strip()})
         
         if self._has_answer(response):

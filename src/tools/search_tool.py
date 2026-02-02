@@ -45,8 +45,8 @@ class SearchTool(BaseTool):
         self.api_key = api_key or self.cfg.get("api_key", "")
         self.base_host = "google.serper.dev"
     
-    def call(self, params: Union[str, Dict[str, Any]], **kwargs) -> str:
-        """执行搜索
+    async def call(self, params: Union[str, Dict[str, Any]], **kwargs) -> str:
+        """异步执行搜索
         
         Args:
             params: 包含 query 字段的参数
@@ -69,13 +69,7 @@ class SearchTool(BaseTool):
             queries = [queries]
         
         # 并行执行所有查询
-        try:
-            return asyncio.run(self._search_parallel(queries))
-        except RuntimeError:
-            # 如果已经在事件循环中（例如在某些环境下）
-            import nest_asyncio
-            nest_asyncio.apply()
-            return asyncio.run(self._search_parallel(queries))
+        return await self._search_parallel(queries)
 
     async def _search_parallel(self, queries: List[str]) -> str:
         tasks = [self._search_single_async(q) for q in queries]

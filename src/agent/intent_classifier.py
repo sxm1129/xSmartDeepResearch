@@ -3,7 +3,7 @@
 import json
 import re
 from typing import Dict, Any, List, Optional
-from openai import OpenAI
+from openai import AsyncOpenAI
 from src.utils.logger import logger
 
 CLASSIFICATION_PROMPT = """You are an intent classifier for a deep research assistant. 
@@ -26,21 +26,13 @@ Query: {query}"""
 class IntentClassifier:
     """意图分类器核心类"""
     
-    def __init__(self, client: OpenAI, model: str = "gpt-4o-mini"):
+    def __init__(self, client: AsyncOpenAI, model: str = "gpt-4o-mini"):
         self.client = client
         self.model = model
         
-    def classify(self, query: str) -> Dict[str, str]:
-        """对原始查询进行分类
-        
-        Args:
-            query: 用户输入的查询
-            
-        Returns:
-            包含 category 和 reason 的字典
-        """
+    async def aclassify(self, query: str) -> Dict[str, str]:
         try:
-            response = self.client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": CLASSIFICATION_PROMPT.format(query=query)}],
                 response_format={"type": "json_object"},
@@ -48,20 +40,40 @@ class IntentClassifier:
                 max_tokens=100
             )
             
-            result = json.loads(response.choices[0].message.content)
+            raw_content = response.choices[0].message.content
+            logger.debug(f"Raw Intent Response: {raw_content}")
             
-            # Robustness: Remove extra quotes or whitespace
-            if "category" in result and isinstance(result["category"], str):
-                result["category"] = result["category"].strip().strip('"').strip("'")
+            try:
+                result = json.loads(raw_content)
+            except Exception as json_err:
+                # 尝试清洗 JSON (处理可能的 Markdown 代码块)
+                clean_json = re.sub(r'```json\s*(.*?)\s*```', r'\1', raw_content, flags=re.DOTALL)
+                result = json.loads(clean_json)
             
-            logger.info(f"🔍 Intent Classified: {result.get('category')} | Reason: {result.get('reason')}")
-            return result
+            # 兼容嵌套结构 (有些模型即使要求 json_object 也会嵌套一层)
+            if "intent" in result and isinstance(result["intent"], dict):
+                result = result["intent"]
+            
+            # 提取 category 和 reason，确保不抛出 KeyError
+            category = result.get("category", result.get("type", "general"))
+            reason = result.get("reason", result.get("explanation", "No reason provided"))
+            
+            # 清理字符串
+            if isinstance(category, str):
+                category = category.strip().strip('"').strip("'").lower()
+            if isinstance(reason, str):
+                reason = reason.strip()
+            
+            logger.info(f"🔍 Intent Classified: {category} | Reason: {reason}")
+            return {"category": category, "reason": reason}
             
         except Exception as e:
-            logger.error(f"❌ Intent classification failed: {e}")
-            # Ensure we return a valid dict structure even on error
+            logger.error(f"❌ Intent classification failed: {e}. Raw response: {raw_content if 'raw_content' in locals() else 'None'}")
             return {"category": "general", "reason": f"Fallback due to error: {str(e)}"}
-            
-        except Exception as e:
-            logger.error(f"❌ Intent classification failed: {e}")
-            return {"category": "general", "reason": "Fallback to general due to error"}
+
+    def classify(self, query: str) -> Dict[str, str]:
+        """对原始查询进行分类 (同步版本 - 供非异步环境使用)"""
+        import asyncio
+        import nest_asyncio
+        nest_asyncio.apply()
+        return asyncio.run(self.aclassify(query))

@@ -5,7 +5,9 @@ from .research import (
     ResearchResponse,
     ResearchStatus,
     TaskStatus,
-    HealthCheck
+    HealthCheck,
+    BatchResearchRequest,
+    BatchResearchResponse
 )
 
 __all__ = [
@@ -13,5 +15,7 @@ __all__ = [
     "ResearchResponse",
     "ResearchStatus",
     "TaskStatus",
-    "HealthCheck"
+    "HealthCheck",
+    "BatchResearchRequest",
+    "BatchResearchResponse"
 ]
