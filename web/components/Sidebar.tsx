@@ -38,9 +38,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, isCollapsed, onTo
         {/* Logo & Nav */}
         <div className="flex flex-col gap-8">
           {/* Logo */}
-          <div className="flex gap-3 items-center cursor-pointer overflow-hidden" onClick={() => onChangeView(View.DASHBOARD)}>
-            <div className="bg-primary/10 flex items-center justify-center aspect-square rounded-full size-10 text-primary shrink-0">
-              <Icon name="psychology" className="text-[24px]" />
+          <div className="flex gap-3 items-center cursor-pointer overflow-hidden group" onClick={() => onChangeView(View.DASHBOARD)}>
+            <div className="flex items-center justify-center size-8 rounded-lg bg-zinc-900 text-white shrink-0 shadow-sm border border-zinc-700">
+              <Icon name="psychology" className="text-[18px]" />
             </div>
             {!isCollapsed && (
               <div className="flex flex-col whitespace-nowrap animate-in fade-in duration-500">
@@ -58,17 +58,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, isCollapsed, onTo
                 <button
                   key={item.view}
                   onClick={() => onChangeView(item.view)}
-                  className={`flex items-center rounded-lg transition-colors group w-full text-left
-                    ${isCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'}
+                  className={`flex items-center rounded-md transition-all group w-full text-left
+                    ${isCollapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-1.5'}
                     ${isActive
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-slate-600 hover:bg-slate-100'
+                      ? 'bg-zinc-100 text-zinc-900 font-medium'
+                      : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
                     }`}
                   title={isCollapsed ? item.label : ''}
                 >
                   <Icon
                     name={item.icon}
-                    className={isActive ? 'text-[22px] font-bold' : 'text-[22px] group-hover:text-primary transition-colors'}
+                    className={isActive ? 'text-[18px]' : 'text-[18px] group-hover:text-zinc-900 transition-colors'}
                     fill={isActive}
                   />
                   {!isCollapsed && (
@@ -79,64 +79,46 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, isCollapsed, onTo
                 </button>
               );
             })}
-
-            {/* Extra link for Wizard Demo */}
-            <button
-              onClick={() => onChangeView(View.WIZARD)}
-              className={`flex items-center rounded-lg transition-colors group w-full text-left
-                    ${isCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'}
-                    ${currentView === View.WIZARD
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              title={isCollapsed ? t('setupWizard') : ""}
-            >
-              <Icon name="auto_fix_high" className={`text-[22px] ${currentView === View.WIZARD ? '' : 'group-hover:text-primary'}`} />
-              {!isCollapsed && (
-                <span className="text-sm font-medium whitespace-nowrap animate-in slide-in-from-left-1 duration-300">{t('setupWizard')}</span>
-              )}
-            </button>
           </nav>
         </div>
 
-        {/* Action Button & Language Toggle */}
+        {/* Action Button & User */}
         <div className="flex flex-col gap-4">
           <button
             onClick={onNewResearch}
-            className={`flex w-full cursor-pointer items-center justify-center rounded-lg h-10 bg-primary hover:bg-primary-dark text-white text-sm font-bold shadow-lg shadow-primary/30 transition-all active:scale-95
-              ${isCollapsed ? 'px-0' : 'gap-2 px-4'}`}
+            className={`flex w-full cursor-pointer items-center justify-center rounded-md h-8 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-medium shadow-sm transition-all active:scale-95 border border-transparent
+              ${isCollapsed ? 'px-0' : 'gap-2 px-3'}`}
             title={isCollapsed ? t('newResearch') : ""}
           >
-            <Icon name="add" className="text-[20px] shrink-0" />
+            <Icon name="add" className="text-[16px] shrink-0" />
             {!isCollapsed && <span className="truncate whitespace-nowrap animate-in fade-in duration-500">{t('newResearch')}</span>}
           </button>
 
           {/* Language Toggle */}
-          <div className={`flex items-center border border-slate-200 rounded-lg p-1 bg-slate-50 ${isCollapsed ? 'flex-col gap-1' : 'flex-row'}`}>
+          <div className={`flex items-center border border-zinc-200 rounded-md p-0.5 bg-zinc-50 ${isCollapsed ? 'flex-col gap-1' : 'flex-row'}`}>
             <button
               onClick={() => setLanguage('en')}
-              className={`flex-1 text-[10px] font-bold py-1 px-1 rounded transition-colors ${language === 'en' ? 'bg-white shadow-sm text-primary border border-slate-100' : 'text-slate-400 hover:text-slate-600'}`}
+              className={`flex-1 text-[10px] font-semibold py-0.5 px-1 rounded-sm transition-colors ${language === 'en' ? 'bg-white shadow-sm text-zinc-900 border border-zinc-200' : 'text-zinc-400 hover:text-zinc-600'}`}
             >
               EN
             </button>
             <button
               onClick={() => setLanguage('zh')}
-              className={`flex-1 text-[10px] font-bold py-1 px-1 rounded transition-colors ${language === 'zh' ? 'bg-white shadow-sm text-primary border border-slate-100' : 'text-slate-400 hover:text-slate-600'}`}
+              className={`flex-1 text-[10px] font-semibold py-0.5 px-1 rounded-sm transition-colors ${language === 'zh' ? 'bg-white shadow-sm text-zinc-900 border border-zinc-200' : 'text-zinc-400 hover:text-zinc-600'}`}
             >
-              中文
+              CN
             </button>
           </div>
 
-          <div className={`mt-2 pt-4 border-t border-slate-200 flex items-center overflow-hidden ${isCollapsed ? 'justify-center' : 'gap-3'}`}>
+          <div className={`mt-2 pt-3 border-t border-zinc-100 flex items-center overflow-hidden ${isCollapsed ? 'justify-center' : 'gap-2.5'}`}>
             <img
               src="https://lh3.googleusercontent.com/aida-public/AB6AXuBHhP4ZO5jZAlhN9Qgy_fElOqtFUsxSl7RMktYjKzvAv-3iMJVEypMosS2jfV9Kjl0lqmLZPpABOMAbO0Vr0ITdqs6mwYspObXMHsLOAwx6Pwab1nfXYQnrMwPpQpDEh-nkokwYf4EAaYwS_aPOTAJcVqRiCJZEbFLrHv7C2IdRxZ5Cpr1zlomAqAIeD50-JAWq3O6vKvcrMbYkN1mo9WKtE586DqPthXHTJ5_fz9gHamOUAvARgCK_BB9Pwcuz-cmveSGCiUKKKw"
               alt="User"
-              className="w-8 h-8 rounded-full border border-slate-200 shrink-0"
+              className="size-6 rounded-full border border-zinc-200 shrink-0 grayscale hover:grayscale-0 transition-all opacity-80 hover:opacity-100"
             />
             {!isCollapsed && (
               <div className="flex-1 min-w-0 animate-in fade-in duration-500">
-                <p className="text-sm font-medium text-slate-900 truncate">Dr. Researcher</p>
-                <p className="text-xs text-slate-500 truncate">{t('proPlan')}</p>
+                <p className="text-xs font-medium text-zinc-700 truncate">Dr. Researcher</p>
               </div>
             )}
           </div>

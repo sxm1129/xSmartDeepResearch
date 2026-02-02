@@ -3,10 +3,13 @@ import { Icon } from '../components/Icon';
 import { ResearchService, ResearchHistoryItem } from '../services/api';
 import { LanguageContext } from '../App';
 
+import { Modal } from '../components/Modal';
+
 export const HistoryScreen: React.FC<{ onSelect: (item: ResearchHistoryItem) => void }> = ({ onSelect }) => {
   const { t } = useContext(LanguageContext);
   const [history, setHistory] = useState<ResearchHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [itemToDelete, setItemToDelete] = useState<ResearchHistoryItem | null>(null);
 
   const fetchHistory = async () => {
     try {
@@ -58,8 +61,60 @@ export const HistoryScreen: React.FC<{ onSelect: (item: ResearchHistoryItem) => 
     }
   };
 
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
+
+    try {
+      setHistory(prev => prev.filter(i => i.task_id !== itemToDelete.task_id));
+      await ResearchService.deleteTask(itemToDelete.task_id);
+    } catch (error) {
+      console.error("Failed to delete task", error);
+      fetchHistory();
+    } finally {
+      setItemToDelete(null);
+    }
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent, item: ResearchHistoryItem) => {
+    e.stopPropagation();
+    setItemToDelete(item);
+  };
+
   return (
     <div className="flex flex-col h-full bg-background-light">
+      <Modal
+        isOpen={!!itemToDelete}
+        onClose={() => setItemToDelete(null)}
+        title={t('deleteResearch')}
+        footer={
+          <>
+            <button
+              onClick={() => setItemToDelete(null)}
+              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              {t('cancel')}
+            </button>
+            <button
+              onClick={confirmDelete}
+              className="px-4 py-2 text-sm font-bold text-white bg-red-600 rounded-lg hover:bg-red-700 shadow-sm transition-colors"
+            >
+              {t('confirmDelete')}
+            </button>
+          </>
+        }
+      >
+        <p className="text-slate-600 text-sm">
+          {t('deleteConfirmationMessage')}
+        </p>
+        {itemToDelete && (
+          <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-100 text-xs text-slate-500 font-mono">
+            ID: {itemToDelete.task_id}
+            <br />
+            Q: {itemToDelete.question}
+          </div>
+        )}
+      </Modal>
+
       {/* Header */}
       <header className="w-full px-6 py-5 md:px-10 border-b border-border-light bg-surface-light/80 backdrop-blur-md sticky top-0 z-10">
         <div className="flex justify-between items-center max-w-7xl mx-auto">
@@ -99,9 +154,14 @@ export const HistoryScreen: React.FC<{ onSelect: (item: ResearchHistoryItem) => 
             </div>
           </div>
 
-          {/* Grid */}
-          {loading && history.length === 0 ? (
+          {loading ? (
             <div className="flex items-center justify-center h-64 text-slate-400">{t('loading')}</div>
+          ) : history.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-96 text-slate-300">
+              <Icon name="manage_search" className="text-6xl mb-4 opacity-20" />
+              <p className="text-lg font-medium text-slate-500">{t('noHistoryFound')}</p>
+              <p className="text-sm text-slate-400">{t('startNewResearchHint')}</p>
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
 
@@ -127,8 +187,16 @@ export const HistoryScreen: React.FC<{ onSelect: (item: ResearchHistoryItem) => 
                       <button
                         onClick={(e) => handleToggleBookmark(e, item)}
                         className={`p-1 rounded-full hover:bg-slate-100 transition-colors ${item.is_bookmarked ? 'text-yellow-400' : 'text-slate-300 hover:text-yellow-400'}`}
+                        title={item.is_bookmarked ? t('removeFromSaved') : t('save')}
                       >
                         <Icon name={item.is_bookmarked ? "star" : "star_border"} className="text-[20px]" fill={item.is_bookmarked} />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteClick(e, item)}
+                        className="p-1 rounded-full hover:bg-slate-100 transition-colors text-slate-300 hover:text-red-500"
+                        title={t('delete')}
+                      >
+                        <Icon name="delete" className="text-[20px]" />
                       </button>
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${getStatusColor(item.status)}`}>
                         {item.status === 'completed' && <span className="size-1.5 rounded-full bg-green-500"></span>}

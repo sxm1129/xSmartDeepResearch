@@ -98,6 +98,18 @@ export const translations = {
         leaveEmptyToKeep: 'Leave empty to keep current key',
         settingsSaved: 'Settings saved successfully!',
         saveFailed: 'Failed to save settings.',
+
+        // Missing Keys
+        noHistoryFound: 'No research history found.',
+        startNewResearchHint: 'Start a new research to see it here.',
+
+        // Delete Feature
+        delete: 'Delete',
+        delete: 'Delete',
+        deleteResearch: 'Delete Research',
+        cancel: 'Cancel',
+        deleteConfirmationMessage: 'Are you sure you want to delete this research task? This action cannot be undone and will remove all associated data.',
+        confirmDelete: 'Delete',
     },
     zh: {
         // Sidebar
@@ -196,6 +208,18 @@ export const translations = {
         leaveEmptyToKeep: '留空以保留当前密钥',
         settingsSaved: '设置保存成功！',
         saveFailed: '设置保存失败。',
+
+        // Missing Keys
+        noHistoryFound: '暂无研究历史。',
+        startNewResearchHint: '开始一项新研究即可在这里查看。',
+
+        // Delete Feature
+        delete: '删除',
+        delete: '删除',
+        deleteResearch: '删除研究',
+        cancel: '取消',
+        deleteConfirmationMessage: '您确定要删除此研究任务吗？此操作无法撤销，并将删除所有相关数据。',
+        confirmDelete: '删除',
     }
 };
 

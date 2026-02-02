@@ -28,8 +28,10 @@ export interface Settings {
     max_context_tokens: number;
     openrouter_api_key?: string;
     serper_api_key?: string;
+    jina_api_key?: string;
     openrouter_api_key_masked: string;
     serper_api_key_masked: string;
+    jina_api_key_masked: string;
 }
 
 export type SettingsUpdate = Partial<Settings>;
@@ -52,18 +54,20 @@ export class ResearchService {
     static async streamResearch(
         question: string,
         onEvent: (event: ResearchEvent) => void,
-        maxIterations: number = 30
+        maxIterations?: number
     ): Promise<void> {
         try {
+            const body: any = { question };
+            if (maxIterations) {
+                body.max_iterations = maxIterations;
+            }
+
             const response = await fetch(`${this.BASE_URL}/stream`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    question,
-                    max_iterations: maxIterations
-                }),
+                body: JSON.stringify(body),
             });
 
             if (!response.ok) {
@@ -148,6 +152,15 @@ export class ResearchService {
             throw new Error('Failed to toggle bookmark');
         }
         return response.json();
+    }
+
+    static async deleteTask(taskId: string): Promise<void> {
+        const response = await fetch(`${this.BASE_URL}/${taskId}?force=true`, { // Always force delete for history management
+            method: 'DELETE',
+        });
+        if (!response.ok) {
+            throw new Error('Failed to delete task');
+        }
     }
 
     static async getAvailableModels(): Promise<Array<{ id: string; name: string; context_length?: number; pricing?: any }>> {

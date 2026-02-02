@@ -109,6 +109,15 @@ class SessionManager:
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """)
 
+            # 创建 System Settings 表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS system_settings (
+                    setting_key VARCHAR(50) PRIMARY KEY,
+                    setting_value TEXT,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """)
+
             # 创建 Research Tasks 表 (新)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS research_tasks (
@@ -261,6 +270,19 @@ class SessionManager:
         except Exception as e:
             logger.error(f"Failed to create research task: {e}")
 
+    def delete_research_task(self, task_id: str):
+        """删除研究任务"""
+        try:
+            conn = self._get_connection(self.db_name)
+            cursor = conn.cursor()
+            
+            cursor.execute("DELETE FROM research_tasks WHERE task_id = %s", (task_id,))
+            
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Failed to delete research task {task_id}: {e}")
+
     def update_research_task(self, task_id: str, update_data: Dict[str, Any]):
         """更新研究任务"""
         try:
@@ -351,3 +373,36 @@ class SessionManager:
             row['created_at'] = row['created_at'].isoformat()
         if isinstance(row.get('updated_at'), datetime):
             row['updated_at'] = row['updated_at'].isoformat()
+
+    # --- System Settings ---
+
+    def save_setting(self, key: str, value: str):
+        """保存系统设置"""
+        try:
+            conn = self._get_connection(self.db_name)
+            cursor = conn.cursor()
+            
+            cursor.execute(
+                "INSERT INTO system_settings (setting_key, setting_value) VALUES (%s, %s) ON DUPLICATE KEY UPDATE setting_value = %s",
+                (key, value, value)
+            )
+            
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Failed to save setting {key}: {e}")
+
+    def get_all_settings(self) -> Dict[str, str]:
+        """获取所有系统设置"""
+        try:
+            conn = self._get_connection(self.db_name)
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT setting_key, setting_value FROM system_settings")
+            rows = cursor.fetchall()  # List of dicts
+            conn.close()
+            
+            return {row['setting_key']: row['setting_value'] for row in rows}
+        except Exception as e:
+            logger.error(f"Failed to get settings: {e}")
+            return {}

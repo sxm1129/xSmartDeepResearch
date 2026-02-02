@@ -27,6 +27,36 @@ async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     # 启动时
     print("🚀 xSmartDeepResearch API starting...")
+    
+    # Load settings from DB
+    from src.api.dependencies import get_session_manager
+    try:
+        session_manager = get_session_manager()
+        db_settings = session_manager.get_all_settings()
+        
+        if db_settings:
+            print("📦 Loading settings from database...")
+            # Map DB keys to settings attributes
+            for key, value in db_settings.items():
+                if hasattr(settings, key):
+                    # Convert types if necessary (simple logic for now)
+                    current_val = getattr(settings, key)
+                    if isinstance(current_val, int):
+                        try:
+                            setattr(settings, key, int(value))
+                        except: pass
+                    elif isinstance(current_val, float):
+                        try:
+                            setattr(settings, key, float(value))
+                        except: pass
+                    elif isinstance(current_val, bool):
+                        setattr(settings, key, value.lower() == 'true')
+                    else:
+                        setattr(settings, key, value)
+            print("✅ Settings loaded from DB")
+    except Exception as e:
+        print(f"⚠️ Failed to load settings from DB: {e}")
+
     print(f"   Model: {settings.model_name}")
     print(f"   Tools: {get_available_tools()}")
     

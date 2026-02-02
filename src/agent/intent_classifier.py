@@ -50,13 +50,36 @@ class IntentClassifier:
                 clean_json = re.sub(r'```json\s*(.*?)\s*```', r'\1', raw_content, flags=re.DOTALL)
                 result = json.loads(clean_json)
             
+            # Ensure result is a dictionary
+            if not isinstance(result, dict):
+                logger.warning(f"⚠️ Intent response is not a dict: {type(result)} -> {result}")
+                # Try to parse if it's a string that looks like JSON
+                if isinstance(result, str):
+                    try:
+                        result = json.loads(result)
+                    except:
+                        pass
+                
+                if not isinstance(result, dict):
+                     return {"category": "general", "reason": f"Invalid response format: {str(result)[:50]}..."}
+
             # 兼容嵌套结构 (有些模型即使要求 json_object 也会嵌套一层)
             if "intent" in result and isinstance(result["intent"], dict):
                 result = result["intent"]
             
             # 提取 category 和 reason，确保不抛出 KeyError
-            category = result.get("category", result.get("type", "general"))
-            reason = result.get("reason", result.get("explanation", "No reason provided"))
+            # Explicitly check keys to avoid any weird behavior
+            category = "general"
+            if "category" in result:
+                category = result["category"]
+            elif "type" in result:
+                category = result["type"]
+            
+            reason = "No reason provided"
+            if "reason" in result:
+                reason = result["reason"]
+            elif "explanation" in result:
+                reason = result["explanation"]
             
             # 清理字符串
             if isinstance(category, str):

@@ -26,9 +26,9 @@ router = APIRouter(prefix="/research", tags=["Research"])
 
 
 from src.utils.session_manager import SessionManager
+from src.api.dependencies import get_session_manager
 
-# 任务存储 (MySQL)
-session_manager = SessionManager()
+# Deprecated: session_manager = SessionManager()
 
 
 @router.post("/stream")
@@ -36,6 +36,7 @@ async def stream_research(
     request: Request,
     research_request: ResearchRequest,
 ):
+    session_manager = get_session_manager()
     """
     流式执行研究任务 (SSE)
     
@@ -43,7 +44,9 @@ async def stream_research(
     """
     async def event_generator():
         agent = get_agent()
-        agent.max_iterations = research_request.max_iterations
+        # Fallback to global settings if not provided in request
+        from config import settings
+        agent.max_iterations = research_request.max_iterations or settings.max_llm_call_per_run
         
         task_id = str(uuid.uuid4())[:8]
         try:
@@ -55,6 +58,10 @@ async def stream_research(
             )
 
             final_answer_data = None
+            
+            # Send initial task_created event
+            yield f"data: {json.dumps({'type': 'task_created', 'content': 'Task initiated', 'task_id': task_id}, ensure_ascii=False)}\n\n"
+            
             async for event in agent.stream_run(research_request.question):
                 # Check client disconnection
                 if await request.is_disconnected():
@@ -108,8 +115,9 @@ async def create_research(
     try:
         agent = get_agent()
         
-        # 设置迭代次数
-        agent.max_iterations = request.max_iterations
+        # 设置迭代次数 (Fallback to global settings)
+        from config import settings
+        agent.max_iterations = request.max_iterations or settings.max_llm_call_per_run
         
         # 执行研究
         result = await agent.run(request.question)
@@ -142,6 +150,8 @@ async def create_async_research(
     task_id = str(uuid.uuid4())[:8]
     
     # 初始化任务状态 (MySQL)
+    # 初始化任务状态 (MySQL)
+    session_manager = get_session_manager()
     session_manager.create_research_task(
         task_id=task_id,
         question=request.question,
@@ -165,11 +175,13 @@ async def create_async_research(
 
 async def _run_research_task(task_id: str, request: ResearchRequest):
     """后台执行研究任务"""
+    session_manager = get_session_manager()
     try:
         session_manager.update_research_task(task_id, {"status": ResearchStatus.RUNNING})
         
         agent = get_agent()
-        agent.max_iterations = request.max_iterations
+        from config import settings
+        agent.max_iterations = request.max_iterations or settings.max_llm_call_per_run
         
         # 在线程池中执行同步代码
         loop = asyncio.get_event_loop()
@@ -196,6 +208,7 @@ async def list_research_history():
     """
     获取研究历史任务列表
     """
+    session_manager = get_session_manager()
     history = []
     tasks = session_manager.list_research_tasks(limit=100)
     
@@ -222,6 +235,7 @@ async def get_research_result(task_id: str):
     
     根据任务ID查询研究结果。
     """
+    session_manager = get_session_manager()
     task = session_manager.get_research_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
@@ -246,6 +260,7 @@ async def get_research_status(task_id: str):
     
     快速查询任务当前状态。
     """
+    session_manager = get_session_manager()
     task = session_manager.get_research_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
@@ -286,17 +301,21 @@ async def create_batch_research(
         
         task_ids.append(task_id)
         
+        task_ids.append(task_id)
+        
         # 初始化任务状态 (MySQL)
+        session_manager = get_session_manager()
         session_manager.create_research_task(
             task_id=task_id,
             question=question,
             status=ResearchStatus.PENDING
         )
         
+        
         # 在后台并行启动
         research_req = ResearchRequest(
             question=question,
-            max_iterations=request.max_iterations
+            max_iterations=request.max_iterations # Batch request handles its own defaults or passes explicit
         )
         background_tasks.add_task(
             _run_research_task,
@@ -312,21 +331,29 @@ async def create_batch_research(
 
 
 @router.delete("/{task_id}")
-async def cancel_research(task_id: str):
+async def cancel_research(task_id: str, force: bool = False):
     """
-    取消研究任务（仅支持PENDING状态的任务）
+    取消或删除研究任务
+    
+    - 如果任务正在运行且 force=False (默认): 标记为 Failed (取消)
+    - 如果任务已完成/失败 或 force=True: 从数据库永久删除
     """
+    session_manager = get_session_manager()
     task = session_manager.get_research_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
     
+    # Check if we should just delete it record
+    if force or task["status"] in [ResearchStatus.COMPLETED, ResearchStatus.FAILED, ResearchStatus.TIMEOUT]:
+         session_manager.delete_research_task(task_id)
+         return {"message": f"Task {task_id} deleted"}
+
     if task["status"] not in [ResearchStatus.PENDING, ResearchStatus.RUNNING]:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Cannot cancel task in {task['status']} status"
-        )
+        # Should have been handled above, but just in case
+        session_manager.delete_research_task(task_id)
+        return {"message": f"Task {task_id} deleted"}
     
-    # 标记为取消（实际取消需要更复杂的实现）
+    # If running and not forced, cancel it
     session_manager.update_research_task(task_id, {
         "status": ResearchStatus.FAILED,
         "termination_reason": "cancelled"
@@ -340,6 +367,7 @@ async def toggle_bookmark(task_id: str):
     切换研究任务的收藏状态
     """
     # Check existence
+    session_manager = get_session_manager()
     task = session_manager.get_research_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")

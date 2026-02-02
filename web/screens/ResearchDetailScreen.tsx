@@ -78,23 +78,23 @@ export const ResearchDetailScreen: React.FC<ResearchDetailScreenProps> = ({ item
     };
 
     return (
-        <div className="flex flex-col h-full bg-background-light">
+        <div className="flex flex-col h-full bg-white">
             {/* Header */}
-            <header className="w-full px-6 py-4 border-b border-border-light bg-surface-light/80 backdrop-blur-md sticky top-0 z-10 flex items-center justify-between">
+            <header className="w-full px-6 py-3 border-b border-zinc-200 bg-white sticky top-0 z-10 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                     <button
                         onClick={onBack}
-                        className="p-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors"
+                        className="p-1.5 rounded-md hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900 transition-colors"
                     >
-                        <Icon name="arrow_back" className="text-xl" />
+                        <Icon name="arrow_back" className="text-lg" />
                     </button>
                     <div>
-                        <h2 className="text-xl font-bold text-slate-900 line-clamp-1">{item.question}</h2>
-                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                            <span className="uppercase font-semibold tracking-wider">{item.status}</span>
-                            <span>•</span>
+                        <h2 className="text-lg font-bold text-zinc-900 line-clamp-1 tracking-tight">{item.question}</h2>
+                        <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono mt-0.5">
+                            <span className="uppercase font-semibold tracking-wider text-zinc-500">{item.status}</span>
+                            <span>/</span>
                             <span>{new Date(item.created_at).toLocaleString()}</span>
-                            <span>•</span>
+                            <span>/</span>
                             <span>{item.iterations} {t('steps')}</span>
                         </div>
                     </div>
@@ -102,11 +102,11 @@ export const ResearchDetailScreen: React.FC<ResearchDetailScreenProps> = ({ item
                 <div className="flex gap-2">
                     <button
                         onClick={handleToggleBookmark}
-                        className={`p-2 rounded-lg border transition-colors flex items-center gap-2 text-sm font-medium ${isBookmarked
-                            ? 'bg-yellow-50 border-yellow-200 text-yellow-600'
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                        className={`p-1.5 px-3 rounded-md border transition-colors flex items-center gap-2 text-xs font-semibold ${isBookmarked
+                            ? 'bg-amber-50 border-amber-200 text-amber-600'
+                            : 'bg-white border-zinc-200 text-zinc-600 hover:bg-zinc-50 hover:border-zinc-300'}`}
                     >
-                        <Icon name={isBookmarked ? "star" : "star_border"} className={isBookmarked ? "fill-current" : ""} />
+                        <Icon name={isBookmarked ? "star" : "star_border"} className={isBookmarked ? "fill-current" : "text-sm"} />
                         {isBookmarked ? t('saved') : t('save')}
                     </button>
 
@@ -114,27 +114,27 @@ export const ResearchDetailScreen: React.FC<ResearchDetailScreenProps> = ({ item
                         <button
                             onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
                             disabled={!item.answer}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900 text-white rounded-md text-xs font-medium hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                         >
-                            <Icon name="download" className="text-lg" />
+                            <Icon name="download" className="text-sm" />
                             {t('export')}
-                            <Icon name="expand_more" className="text-lg" />
+                            <Icon name="expand_more" className="text-sm" />
                         </button>
 
                         {isExportMenuOpen && (
-                            <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-slate-100 py-1 z-50 animate-in fade-in zoom-in-95 duration-200">
+                            <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 py-0.5 z-50 animate-in fade-in zoom-in-95 duration-100">
                                 <button
                                     onClick={handleExportMarkdown}
-                                    className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                                    className="w-full text-left px-4 py-2 text-xs text-zinc-700 hover:bg-zinc-50 flex items-center gap-2"
                                 >
-                                    <Icon name="description" className="text-slate-400 text-base" />
+                                    <Icon name="description" className="text-zinc-400 text-sm" />
                                     {t('exportAsMarkdown')}
                                 </button>
                                 <button
                                     onClick={handleExportPDF}
-                                    className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                                    className="w-full text-left px-4 py-2 text-xs text-zinc-700 hover:bg-zinc-50 flex items-center gap-2"
                                 >
-                                    <Icon name="picture_as_pdf" className="text-slate-400 text-base" />
+                                    <Icon name="picture_as_pdf" className="text-zinc-400 text-sm" />
                                     {t('exportAsPDF')}
                                 </button>
                             </div>
@@ -144,19 +144,21 @@ export const ResearchDetailScreen: React.FC<ResearchDetailScreenProps> = ({ item
             </header>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6 md:p-10">
-                <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-sm border border-slate-100 p-8 min-h-[500px]">
+            <div className="flex-1 overflow-y-auto p-0">
+                <div className="max-w-4xl mx-auto bg-white min-h-full py-12 px-8">
                     {item.answer ? (
-                        <div className="flex-1 overflow-y-auto" id="report-content">
-                            <MarkdownViewer content={item.answer} />
+                        <div className="flex-1" id="report-content">
+                            <article className="prose prose-zinc max-w-none prose-headings:font-display prose-headings:font-semibold prose-headings:tracking-tight prose-h1:text-2xl prose-p:text-sm prose-p:leading-7 prose-a:text-zinc-800">
+                                <MarkdownViewer content={item.answer} />
+                            </article>
                         </div>
                     ) : (
-                        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                            <Icon name="description" className="text-6xl mb-4 opacity-20" />
-                            <p className="text-lg font-medium">{t('noReportContent')}</p>
-                            <p className="text-sm">{t('researchFailedHint')}</p>
+                        <div className="flex flex-col items-center justify-center py-20 text-zinc-300">
+                            <Icon name="description" className="text-5xl mb-4 opacity-30" />
+                            <p className="text-sm font-medium text-zinc-500">{t('noReportContent')}</p>
+                            <p className="text-xs">{t('researchFailedHint')}</p>
                             {item.termination_reason && (
-                                <div className="mt-4 p-4 bg-red-50 text-red-600 rounded-lg text-sm max-w-md text-center">
+                                <div className="mt-4 p-3 bg-red-50 text-red-600 rounded-md text-xs border border-red-100 max-w-md text-center">
                                     {t('error')}: {item.termination_reason}
                                 </div>
                             )}

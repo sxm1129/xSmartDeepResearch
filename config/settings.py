@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     # Agent Configuration
     # ==========================================================================
     max_llm_call_per_run: int = Field(default=100, env="MAX_LLM_CALL_PER_RUN")
-    max_context_tokens: int = Field(default=110000, env="MAX_CONTEXT_TOKENS")
+    max_context_tokens: int = Field(default=100000, env="MAX_CONTEXT_TOKENS")
     temperature: float = Field(default=0.6, env="TEMPERATURE")
     top_p: float = Field(default=0.95, env="TOP_P")
     presence_penalty: float = Field(default=1.1, env="PRESENCE_PENALTY")

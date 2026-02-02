@@ -41,19 +41,19 @@ export const LiveResearchScreen: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full relative">
+    <div className="flex flex-col h-full relative bg-white">
       {/* Header */}
-      <header className="h-16 glass-panel border-b border-border-light flex items-center justify-between px-6 z-10 sticky top-0 bg-white/80 backdrop-blur-md">
-        <div className="flex-1 max-w-2xl relative">
-          <form onSubmit={handleSearch} className="relative w-full">
+      <header className="h-14 border-b border-zinc-100 flex items-center justify-between px-6 z-10 sticky top-0 bg-white">
+        <div className="flex-1 max-w-xl relative">
+          <form onSubmit={handleSearch} className="relative w-full group">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Icon name="search" className="text-slate-400" />
+              <Icon name="search" className="text-zinc-400 group-focus-within:text-zinc-800 transition-colors" />
             </div>
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary sm:text-sm transition-shadow shadow-sm"
+              className="block w-full pl-9 pr-3 py-1.5 border border-zinc-200 rounded-md leading-5 bg-zinc-50/50 text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-0 focus:border-zinc-400 focus:bg-white sm:text-sm transition-all shadow-sm hover:border-zinc-300"
               placeholder={t('enterTopic')}
               disabled={isResearching}
             />
@@ -62,12 +62,11 @@ export const LiveResearchScreen: React.FC = () => {
 
         <div className="flex items-center gap-6 ml-6">
           <div className="hidden md:flex flex-col items-end">
-            <div className={`flex items - center gap - 1.5 text - xs font - medium ${isResearching ? 'text-emerald-600' : 'text-slate-500'} `}>
-              <span className="relative flex h-2 w-2">
-                {isResearching && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
-                <span className={`relative inline - flex rounded - full h - 2 w - 2 ${isResearching ? 'bg-emerald-500' : 'bg-slate-400'} `}></span>
+            <div className="flex items-center gap-2">
+              {isResearching && <div className="size-2 bg-emerald-500 rounded-full animate-pulse" />}
+              <span className={`text-xs font-medium ${isResearching ? 'text-zinc-900' : 'text-zinc-400'}`}>
+                {isResearching ? 'Processing' : 'Ready'}
               </span>
-              {isResearching ? t('deepResearchRunning') : t('ready')}
             </div>
           </div>
           {isResearching && (
@@ -166,26 +165,26 @@ export const LiveResearchScreen: React.FC = () => {
               </div>
             </div>
 
-            {/* Sources */}
-            <div className="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col h-1/2 overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                  <Icon name="link" className="text-sm text-indigo-500" />
+            {/* Sources - Linear Style */}
+            <div className="bg-white border border-zinc-200 rounded-lg shadow-sm flex flex-col h-1/2 overflow-hidden">
+              <div className="px-3 py-2 border-b border-zinc-200 bg-zinc-50/50 flex items-center justify-between">
+                <h3 className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2 font-display">
+                  <Icon name="link" className="text-xs text-zinc-400" />
                   {t('sources')}
                 </h3>
-                <span className="text-[10px] text-slate-400">{sources.length} {t('found')}</span>
+                <span className="text-[10px] text-zinc-400">{sources.length}</span>
               </div>
-              <div className="p-3 overflow-y-auto flex-1 space-y-3 bg-slate-50/30">
+              <div className="p-2 overflow-y-auto flex-1 space-y-2 bg-white">
                 {sources.map((source, idx) => (
-                  <a key={idx} href={source.url} target="_blank" rel="noreferrer" className="block bg-white p-3 rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group">
+                  <a key={idx} href={source.url} target="_blank" rel="noreferrer" className="block bg-zinc-50/50 p-2.5 rounded border border-zinc-100 hover:border-zinc-300 hover:shadow-sm transition-all cursor-pointer group">
                     <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                      <div className="flex items-center gap-1.5 text-[10px] text-zinc-400 mb-1">
                         <Icon name="public" className="text-[10px]" />
                         <span className="truncate max-w-[150px]">{new URL(source.url).hostname}</span>
                       </div>
-                      <Icon name="open_in_new" className="text-xs text-slate-300 group-hover:text-primary" />
+                      <Icon name="arrow_outward" className="text-[10px] text-zinc-300 group-hover:text-zinc-600" />
                     </div>
-                    <h4 className="text-sm font-medium text-slate-800 leading-tight line-clamp-2">{source.title}</h4>
+                    <h4 className="text-[12px] font-medium text-zinc-700 leading-snug line-clamp-2 group-hover:text-zinc-900">{source.title}</h4>
                   </a>
                 ))}
                 {sources.length === 0 && (
@@ -198,33 +197,32 @@ export const LiveResearchScreen: React.FC = () => {
 
           </div>
 
-          {/* Main Report Area */}
+          {/* Main Report Area - Linear Style */}
           <div className="col-span-12 lg:col-span-9 flex flex-col h-full overflow-hidden">
-            <div className="bg-white border border-slate-200 rounded-xl shadow-sm h-full flex flex-col relative overflow-hidden">
+            <div className="bg-white border border-zinc-200 rounded-lg shadow-sm h-full flex flex-col relative overflow-hidden">
               {/* Report Toolbar */}
-              <div className="h-12 border-b border-slate-200 px-4 flex items-center justify-between bg-slate-50/80 backdrop-blur-sm z-20">
+              <div className="h-10 border-b border-zinc-100 px-4 flex items-center justify-between bg-white z-20">
                 <div className="flex items-center gap-4">
-                  <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <Icon name="auto_awesome" className="text-primary text-base" />
+                  <h2 className="text-xs font-semibold text-zinc-700 flex items-center gap-2 uppercase tracking-wide">
+                    <Icon name="auto_awesome" className="text-zinc-500 text-sm" />
                     {t('liveResearchReport')}
                   </h2>
                 </div>
               </div>
 
               {/* Report Content */}
-              <div className="flex-1 overflow-y-auto p-8 lg:px-16 bg-white relative">
-                {isResearching && (
-                  <div className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary rounded-full text-xs font-medium animate-pulse">
-                    <Icon name="refresh" className="text-sm animate-spin" />
-                    {t('generatingInsights')}
+              <div className="flex-1 overflow-y-auto p-12 lg:px-20 bg-white relative">
+                {isResearching && !reportContent && (
+                  <div className="absolute top-4 right-4 flex items-center gap-2">
+                    <div className="loader border-t-zinc-400 border-zinc-200 size-4 border-2 rounded-full animate-spin"></div>
                   </div>
                 )}
 
-                <article className="prose prose-slate max-w-none prose-headings:font-display prose-headings:font-bold prose-h1:text-3xl prose-p:leading-relaxed prose-a:text-primary whitespace-pre-wrap">
+                <article className="prose prose-zinc max-w-none prose-headings:font-display prose-headings:font-semibold prose-headings:tracking-tight prose-h1:text-2xl prose-p:text-sm prose-p:leading-7 prose-a:text-zinc-800 prose-code:text-xs">
                   {reportContent || (
-                    <div className="flex flex-col items-center justify-center h-64 text-slate-400">
-                      <Icon name="science" className="text-6xl mb-4 opacity-20" />
-                      <p>{t('startTopicAbove')}</p>
+                    <div className="flex flex-col items-center justify-center h-64 text-zinc-300">
+                      <Icon name="science" className="text-4xl mb-4 opacity-50" />
+                      <p className="text-sm">{t('startTopicAbove')}</p>
                     </div>
                   )}
                   <div ref={reportEndRef} />

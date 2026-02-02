@@ -2,17 +2,21 @@ import React, { useState, useEffect, useContext } from 'react';
 import { Icon } from '../components/Icon';
 import { ResearchService, Settings } from '../services/api';
 import { LanguageContext } from '../App';
+import { useToast } from '../contexts/ToastContext';
 
 export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowError }) => {
     const { t } = useContext(LanguageContext);
+    const { success, error } = useToast();
     const [settings, setSettings] = useState<Settings>({
         model_name: 'gpt-4o',
         temperature: 0.7,
         top_p: 0.9,
         max_iterations: 10,
         max_context_tokens: 32000,
+        max_context_tokens: 32000,
         openrouter_api_key_masked: '',
-        serper_api_key_masked: ''
+        serper_api_key_masked: '',
+        jina_api_key_masked: ''
     });
     const [availableModels, setAvailableModels] = useState<Array<{ id: string; name: string; context_length?: number }>>([]);
     const [fetchingModels, setFetchingModels] = useState(false);
@@ -23,6 +27,7 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
     // Local state for inputs to allow editing
     const [openrouterKey, setOpenrouterKey] = useState('');
     const [serperKey, setSerperKey] = useState('');
+    const [jinaKey, setJinaKey] = useState('');
 
     useEffect(() => {
         loadSettings();
@@ -36,6 +41,7 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
             setAvailableModels(models);
         } catch (e) {
             console.error("Failed to fetch models", e);
+            // Don't show error toast on initial load to avoid annoyance if offline
         } finally {
             setFetchingModels(false);
         }
@@ -64,16 +70,20 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
             };
 
             if (openrouterKey) update.openrouter_api_key = openrouterKey;
+            if (openrouterKey) update.openrouter_api_key = openrouterKey;
             if (serperKey) update.serper_api_key = serperKey;
+            if (jinaKey) update.jina_api_key = jinaKey;
 
             const newSettings = await ResearchService.updateSettings(update);
             setSettings(newSettings);
             setOpenrouterKey(''); // Clear after save
+            setOpenrouterKey(''); // Clear after save
             setSerperKey('');
-            alert(t('settingsSaved'));
+            setJinaKey('');
+            success(t('settingsSaved'));
         } catch (e) {
             console.error("Failed to save settings", e);
-            alert(t('saveFailed'));
+            error(t('saveFailed'));
         } finally {
             setSaving(false);
         }
@@ -244,6 +254,7 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
                                             <option value="4000">4k</option>
                                             <option value="16000">16k</option>
                                             <option value="32000">32k</option>
+                                            <option value="100000">100k</option>
                                             <option value="128000">128k</option>
                                         </select>
                                     </div>
@@ -289,6 +300,20 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
                                             value={serperKey}
                                             onChange={(e) => setSerperKey(e.target.value)}
                                             className="w-full bg-blue-50 border border-blue-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Jina */}
+                                <div>
+                                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">{t('jinaKey')}</label>
+                                    <div className="relative">
+                                        <input
+                                            type="password"
+                                            placeholder={settings.jina_api_key_masked || t('noKeySet')}
+                                            value={jinaKey}
+                                            onChange={(e) => setJinaKey(e.target.value)}
+                                            className="w-full bg-violet-50 border border-violet-300 text-slate-900 text-sm rounded-lg focus:ring-violet-500 focus:border-violet-500 block p-2.5"
                                         />
                                     </div>
                                 </div>

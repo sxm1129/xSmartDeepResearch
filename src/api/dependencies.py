@@ -93,3 +93,10 @@ def get_task_store() -> Dict[str, Any]:
     """获取任务存储（简单实现）"""
     # 生产环境应该使用 Redis
     return {}
+
+from src.utils.session_manager import SessionManager
+
+@lru_cache()
+def get_session_manager() -> SessionManager:
+    """获取 SessionManager 单例"""
+    return SessionManager()

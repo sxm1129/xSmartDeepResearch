@@ -12,6 +12,38 @@ from config import settings
 from src.utils.logger import logger
 
 
+def _run_with_limits_worker(code, queue, timeout):
+    """Worker function for local execution (global scope for pickling)"""
+    import sys
+    from io import StringIO
+    import resource
+    try:
+        # CPU 时间 (秒)
+        resource.setrlimit(resource.RLIMIT_CPU, (timeout, timeout))
+        # 地址空间 (字节)
+        resource.setrlimit(resource.RLIMIT_AS, (512 * 1024 * 1024, 512 * 1024 * 1024))
+    except Exception as e:
+        logger.warning(f"Failed to set resource limits: {e}")
+
+    # 捕获输出
+    old_stdout = sys.stdout
+    old_stderr = sys.stderr
+    sys.stdout = StringIO()
+    sys.stderr = StringIO()
+    
+    try:
+        exec_globals = {"__builtins__": __builtins__}
+        exec(code, exec_globals)
+        stdout_val = sys.stdout.getvalue()
+        stderr_val = sys.stderr.getvalue()
+        queue.put((stdout_val, stderr_val, None))
+    except Exception as e:
+        queue.put(("", "", str(e)))
+    finally:
+        sys.stdout = old_stdout
+        sys.stderr = old_stderr
+
+
 class PythonInterpreterTool(BaseTool):
     """Python 代码执行工具
     
@@ -204,37 +236,9 @@ print(f"The result is: {np.mean([1,2,3])}")
         import resource
         import multiprocessing
         
-        def run_with_limits(code, queue):
-            # 限制资源
-            try:
-                # CPU 时间 (秒)
-                resource.setrlimit(resource.RLIMIT_CPU, (self.timeout, self.timeout))
-                # 地址空间 (字节)
-                resource.setrlimit(resource.RLIMIT_AS, (512 * 1024 * 1024, 512 * 1024 * 1024))
-            except Exception as e:
-                logger.warning(f"Failed to set resource limits: {e}")
-
-            # 捕获输出
-            old_stdout = sys.stdout
-            old_stderr = sys.stderr
-            sys.stdout = StringIO()
-            sys.stderr = StringIO()
-            
-            try:
-                exec_globals = {"__builtins__": __builtins__}
-                exec(code, exec_globals)
-                stdout_val = sys.stdout.getvalue()
-                stderr_val = sys.stderr.getvalue()
-                queue.put((stdout_val, stderr_val, None))
-            except Exception as e:
-                queue.put(("", "", str(e)))
-            finally:
-                sys.stdout = old_stdout
-                sys.stderr = old_stderr
-
         # 使用进程池或 Process 运行以确保资源限制在子进程生效且不影响主进程
         queue = multiprocessing.Queue()
-        p = multiprocessing.Process(target=run_with_limits, args=(code, queue))
+        p = multiprocessing.Process(target=_run_with_limits_worker, args=(code, queue, self.timeout))
         p.start()
         p.join(timeout=self.timeout + 1)
         

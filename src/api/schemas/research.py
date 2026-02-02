@@ -18,7 +18,7 @@ class ResearchStatus(str, Enum):
 class ResearchRequest(BaseModel):
     """研究请求"""
     question: str = Field(..., description="用户的研究问题", min_length=1)
-    max_iterations: int = Field(default=50, ge=1, le=100, description="最大迭代次数")
+    max_iterations: Optional[int] = Field(default=None, ge=1, le=100, description="最大迭代次数")
     tools: Optional[List[str]] = Field(default=None, description="启用的工具列表，None表示全部")
     stream: bool = Field(default=False, description="是否启用流式输出")
     
