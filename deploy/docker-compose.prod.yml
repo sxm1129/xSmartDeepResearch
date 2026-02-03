@@ -1,0 +1,33 @@
+# xSmartDeepResearch Production Docker Compose
+# For deployment with external MySQL database
+
+version: '3.8'
+
+services:
+  xsmart-deepresearch:
+    image: crpi-feit7ei40cgu7xjt.cn-shenzhen.personal.cr.aliyuncs.com/sxm1129/xsmart-deepresearch:latest
+    container_name: xsmart-deepresearch
+    ports:
+      - "80:80" # Frontend (via Nginx)
+      - "8000:8000" # Backend API (direct access)
+    env_file:
+      - ../.env
+    environment:
+      - PYTHONPATH=/app
+      - TZ=Asia/Shanghai
+    volumes:
+      - ../data:/app/data
+      - ../logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - xsmart-network
+
+networks:
+  xsmart-network:
+    driver: bridge

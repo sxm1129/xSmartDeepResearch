@@ -218,15 +218,17 @@ export const LiveResearchScreen: React.FC = () => {
                   </div>
                 )}
 
-                <article className="prose prose-zinc max-w-none prose-headings:font-display prose-headings:font-semibold prose-headings:tracking-tight prose-h1:text-2xl prose-p:text-sm prose-p:leading-7 prose-a:text-zinc-800 prose-code:text-xs">
-                  {reportContent || (
+                <div className="flex-1">
+                  {reportContent ? (
+                    <MarkdownViewer content={reportContent} />
+                  ) : (
                     <div className="flex flex-col items-center justify-center h-64 text-zinc-300">
                       <Icon name="science" className="text-4xl mb-4 opacity-50" />
                       <p className="text-sm">{t('startTopicAbove')}</p>
                     </div>
                   )}
                   <div ref={reportEndRef} />
-                </article>
+                </div>
               </div>
             </div>
           </div>

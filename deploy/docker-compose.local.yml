@@ -1,0 +1,37 @@
+# xSmartDeepResearch Local Docker Compose
+# For local testing with the unified image
+
+version: '3.8'
+
+services:
+  xsmart-deepresearch:
+    image: xsmart-deepresearch:1.0.0
+    container_name: xsmart-local
+    ports:
+      - "3080:80" # Frontend (via Nginx) - use 3080 to avoid conflict
+      - "3800:8000" # Backend API (direct access)
+    env_file:
+      - ../.env
+    environment:
+      - PYTHONPATH=/app
+      - TZ=Asia/Shanghai
+    volumes:
+      - xsmart_data:/app/data
+      - xsmart_logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - xsmart-local
+
+networks:
+  xsmart-local:
+    driver: bridge
+
+volumes:
+  xsmart_data:
+  xsmart_logs:

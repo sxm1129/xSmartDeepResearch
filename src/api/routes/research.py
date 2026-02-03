@@ -51,7 +51,8 @@ async def stream_research(
         task_id = str(uuid.uuid4())[:8]
         try:
             # Create task record
-            session_manager.create_research_task(
+            await asyncio.to_thread(
+                session_manager.create_research_task,
                 task_id=task_id,
                 question=research_request.question,
                 status=ResearchStatus.RUNNING
@@ -84,11 +85,11 @@ async def stream_research(
                     "termination_reason": final_answer_data.get("termination", "answer")
                 })
             
-            session_manager.update_research_task(task_id, update_data)
+            await asyncio.to_thread(session_manager.update_research_task, task_id, update_data)
 
         except Exception as e:
             logger.error(f"Stream research failed: {e}")
-            session_manager.update_research_task(task_id, {
+            await asyncio.to_thread(session_manager.update_research_task, task_id, {
                 "status": ResearchStatus.FAILED,
                 "termination_reason": str(e)
             })
@@ -150,9 +151,9 @@ async def create_async_research(
     task_id = str(uuid.uuid4())[:8]
     
     # 初始化任务状态 (MySQL)
-    # 初始化任务状态 (MySQL)
     session_manager = get_session_manager()
-    session_manager.create_research_task(
+    await asyncio.to_thread(
+        session_manager.create_research_task,
         task_id=task_id,
         question=request.question,
         status=ResearchStatus.PENDING
@@ -177,7 +178,7 @@ async def _run_research_task(task_id: str, request: ResearchRequest):
     """后台执行研究任务"""
     session_manager = get_session_manager()
     try:
-        session_manager.update_research_task(task_id, {"status": ResearchStatus.RUNNING})
+        await asyncio.to_thread(session_manager.update_research_task, task_id, {"status": ResearchStatus.RUNNING})
         
         agent = get_agent()
         from config import settings
@@ -187,7 +188,7 @@ async def _run_research_task(task_id: str, request: ResearchRequest):
         loop = asyncio.get_event_loop()
         result = await agent.run(request.question)
         
-        session_manager.update_research_task(task_id, {
+        await asyncio.to_thread(session_manager.update_research_task, task_id, {
             "status": ResearchStatus.COMPLETED,
             "answer": result.prediction,
             "iterations": result.iterations,
@@ -196,7 +197,7 @@ async def _run_research_task(task_id: str, request: ResearchRequest):
         })
         
     except Exception as e:
-        session_manager.update_research_task(task_id, {
+        await asyncio.to_thread(session_manager.update_research_task, task_id, {
             "status": ResearchStatus.FAILED,
             "answer": f"Error: {str(e)}",
             "termination_reason": "error"
@@ -210,7 +211,7 @@ async def list_research_history():
     """
     session_manager = get_session_manager()
     history = []
-    tasks = session_manager.list_research_tasks(limit=100)
+    tasks = await asyncio.to_thread(session_manager.list_research_tasks, limit=100)
     
     for task in tasks:
         history.append(ResearchResponse(
@@ -236,7 +237,7 @@ async def get_research_result(task_id: str):
     根据任务ID查询研究结果。
     """
     session_manager = get_session_manager()
-    task = session_manager.get_research_task(task_id)
+    task = await asyncio.to_thread(session_manager.get_research_task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
     
@@ -261,7 +262,7 @@ async def get_research_status(task_id: str):
     快速查询任务当前状态。
     """
     session_manager = get_session_manager()
-    task = session_manager.get_research_task(task_id)
+    task = await asyncio.to_thread(session_manager.get_research_task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
     
@@ -305,7 +306,8 @@ async def create_batch_research(
         
         # 初始化任务状态 (MySQL)
         session_manager = get_session_manager()
-        session_manager.create_research_task(
+        await asyncio.to_thread(
+            session_manager.create_research_task,
             task_id=task_id,
             question=question,
             status=ResearchStatus.PENDING
@@ -345,16 +347,16 @@ async def cancel_research(task_id: str, force: bool = False):
     
     # Check if we should just delete it record
     if force or task["status"] in [ResearchStatus.COMPLETED, ResearchStatus.FAILED, ResearchStatus.TIMEOUT]:
-         session_manager.delete_research_task(task_id)
+         await asyncio.to_thread(session_manager.delete_research_task, task_id)
          return {"message": f"Task {task_id} deleted"}
 
     if task["status"] not in [ResearchStatus.PENDING, ResearchStatus.RUNNING]:
         # Should have been handled above, but just in case
-        session_manager.delete_research_task(task_id)
+        await asyncio.to_thread(session_manager.delete_research_task, task_id)
         return {"message": f"Task {task_id} deleted"}
     
     # If running and not forced, cancel it
-    session_manager.update_research_task(task_id, {
+    await asyncio.to_thread(session_manager.update_research_task, task_id, {
         "status": ResearchStatus.FAILED,
         "termination_reason": "cancelled"
     })
@@ -372,6 +374,6 @@ async def toggle_bookmark(task_id: str):
     if not task:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
         
-    is_bookmarked = session_manager.toggle_research_bookmark(task_id)
+    is_bookmarked = await asyncio.to_thread(session_manager.toggle_research_bookmark, task_id)
     
     return {"message": "Bookmark updated", "is_bookmarked": is_bookmarked}

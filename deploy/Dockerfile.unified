@@ -1,0 +1,77 @@
+# xSmartDeepResearch Unified Dockerfile
+# Combines Python Backend + React Frontend in a single image
+
+# ============================================
+# Stage 1: Build Frontend
+# ============================================
+FROM node:18-alpine AS frontend-builder
+
+WORKDIR /app/web
+
+# Copy package files first for better caching
+COPY web/package*.json ./
+
+# Install dependencies
+RUN npm ci --legacy-peer-deps
+
+# Copy frontend source and build
+COPY web/ ./
+RUN npm run build
+
+# ============================================
+# Stage 2: Production Image
+# ============================================
+FROM python:3.10-slim
+
+LABEL maintainer="xSmartDeepResearch"
+LABEL version="1.0.0"
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+WORKDIR /app
+
+# Install system dependencies (nginx, supervisor, and build tools)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nginx \
+    supervisor \
+    build-essential \
+    curl \
+    git \
+    default-libmysqlclient-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Copy and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
+
+# Copy backend source code
+COPY src/ ./src/
+COPY config/ ./config/
+COPY scripts/ ./scripts/
+
+# Copy built frontend from Stage 1
+COPY --from=frontend-builder /app/web/dist /var/www/html
+
+# Copy Nginx configuration
+COPY deploy/nginx.conf /etc/nginx/sites-available/default
+
+# Copy Supervisor configuration
+COPY deploy/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Create necessary directories
+RUN mkdir -p /app/data /app/logs /var/log/supervisor
+
+# Expose ports (80 for frontend via Nginx, 8000 for direct API access)
+EXPOSE 80 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Start Supervisor (manages nginx + uvicorn)
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
