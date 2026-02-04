@@ -29,41 +29,26 @@ echo -e "Image:     ${YELLOW}${IMAGE_NAME}:${VERSION}${NC}"
 echo ""
 
 # ============================================
-# Step 1: Build Docker Image
+# Step 1: Build & Push Multi-Platform Image
 # ============================================
-echo -e "${GREEN}[1/3] Building Docker image...${NC}"
+echo -e "${GREEN}[1/2] Building and Pushing for linux/amd64...${NC}"
 
-docker build \
-    -t ${IMAGE_NAME}:${VERSION} \
-    -t ${IMAGE_NAME}:latest \
+# Check if buildx builder exists, if not create one
+if ! docker buildx inspect xsmart-builder > /dev/null 2>&1; then
+    echo -e "${YELLOW}Creating new buildx builder...${NC}"
+    docker buildx create --name xsmart-builder --use
+fi
+
+docker buildx build \
+    --platform linux/amd64 \
+    -t ${FULL_IMAGE_NAME}:${VERSION} \
+    -t ${FULL_IMAGE_NAME}:latest \
     -f deploy/Dockerfile.unified \
+    --push \
     .
 
-echo -e "${GREEN}✓ Build completed${NC}"
+echo -e "${GREEN}✓ Build and Push completed for linux/amd64${NC}"
 echo ""
-
-# ============================================
-# Step 2: Tag for Registry
-# ============================================
-echo -e "${GREEN}[2/3] Tagging image for registry...${NC}"
-
-docker tag ${IMAGE_NAME}:${VERSION} ${FULL_IMAGE_NAME}:${VERSION}
-docker tag ${IMAGE_NAME}:latest ${FULL_IMAGE_NAME}:latest
-
-echo -e "${GREEN}✓ Tagged: ${FULL_IMAGE_NAME}:${VERSION}${NC}"
-echo -e "${GREEN}✓ Tagged: ${FULL_IMAGE_NAME}:latest${NC}"
-echo ""
-
-# ============================================
-# Step 3: Push to Registry
-# ============================================
-echo -e "${GREEN}[3/3] Pushing to Alibaba Cloud Registry...${NC}"
-echo -e "${YELLOW}Note: Make sure you are logged in with:${NC}"
-echo -e "${YELLOW}  docker login --username=sxm1129@126.com ${REGISTRY}${NC}"
-echo ""
-
-docker push ${FULL_IMAGE_NAME}:${VERSION}
-docker push ${FULL_IMAGE_NAME}:latest
 
 echo ""
 echo -e "${GREEN}============================================${NC}"

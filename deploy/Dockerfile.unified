@@ -34,7 +34,9 @@ ENV PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app
 
 # Install system dependencies (nginx, supervisor, and build tools)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && \
+    for i in 1 2 3; do \
+    apt-get install -y --no-install-recommends --fix-missing \
     nginx \
     supervisor \
     build-essential \
@@ -42,12 +44,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     default-libmysqlclient-dev \
     pkg-config \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    && break || sleep 5; \
+    done && \
+    rm -rf /var/lib/apt/lists/* && \
+    apt-get clean
 
 # Copy and install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
+RUN pip install --no-cache-dir --default-timeout=1000 -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
 
 # Copy backend source code
 COPY src/ ./src/
