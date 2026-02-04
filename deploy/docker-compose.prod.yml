@@ -5,11 +5,11 @@ version: '3.8'
 
 services:
   xsmart-deepresearch:
-    image: crpi-feit7ei40cgu7xjt.cn-shenzhen.personal.cr.aliyuncs.com/sxm1129/xsmart-deepresearch:latest
+    image: crpi-feit7ei40cgu7xjt.cn-shenzhen.personal.cr.aliyuncs.com/sxm1129/xsmart-deepresearch:1.0.7
     container_name: xsmart-deepresearch
     ports:
-      - "80:80" # Frontend (via Nginx)
-      - "8000:8000" # Backend API (direct access)
+        - "4004:80"     # 前端：宿主机4004 → 容器80
+        - "4005:8000"   # 后端：宿主机4005 → 容器8000
     env_file:
       - ../.env
     environment:
