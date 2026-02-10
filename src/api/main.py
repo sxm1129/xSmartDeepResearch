@@ -84,7 +84,6 @@ app = FastAPI(
 2. 异步研究：`POST /api/v1/research/async`
 3. 查询结果：`GET /api/v1/research/{task_id}`
     """,
-    """,
     version="1.0.11",
     lifespan=lifespan,
     docs_url="/docs",
@@ -121,7 +120,7 @@ async def simple_health_check():
     """
     简单健康检查端点 (保留兼容性)
     
-    返回服务基本状态和配置信息。
+    返回服务基本状态和配置信息.
     如需详细的组件健康检查,请使用 GET /api/health
     """
     return HealthCheck(
