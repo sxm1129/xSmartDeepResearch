@@ -5,6 +5,9 @@ from pydantic import BaseModel, Field
 from enum import Enum
 from datetime import datetime
 
+# Import ComponentHealth from utils to avoid circular dependency
+# It's defined as a dataclass in src.utils.health
+
 
 class ResearchStatus(str, Enum):
     """研究任务状态"""
@@ -91,10 +94,43 @@ class TaskStatus(BaseModel):
     message: str = Field(default="")
 
 
+class ComponentHealth(BaseModel):
+    """单个组件健康状态"""
+    result: str = Field(..., description="succeed 或 fail")
+    message: Optional[str] = Field(None, description="额外信息或错误描述")
+    details: Optional[Dict[str, Any]] = Field(None, description="详细数据")
+
+
+class HealthCheckDetail(BaseModel):
+    """功能健康监控详细响应"""
+    result: str = Field(..., description="总体状态: succeed 或 fail")
+    timestamp: str = Field(..., description="检查时间 ISO 8601 格式")
+    details: Dict[str, ComponentHealth] = Field(..., description="各组件健康状态")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "result": "succeed",
+                "timestamp": "2026-02-10T16:05:00Z",
+                "details": {
+                    "database": {
+                        "result": "succeed",
+                        "message": "MySQL connection OK"
+                    },
+                    "disk": {
+                        "result": "succeed",
+                        "details": {"free_gb": "45GB", "usage_percent": "65%"}
+                    }
+                }
+            }
+        }
+
+
 class HealthCheck(BaseModel):
-    """健康检查响应"""
+    """简单健康检查响应 (保留兼容性)"""
     status: str = "healthy"
     version: str = "0.1.0"
     model: str
     tools_available: List[str]
     timestamp: datetime = Field(default_factory=datetime.now)
+

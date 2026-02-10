@@ -6,6 +6,8 @@ from .research import (
     ResearchStatus,
     TaskStatus,
     HealthCheck,
+    HealthCheckDetail,
+    ComponentHealth,
     BatchResearchRequest,
     BatchResearchResponse
 )
@@ -16,6 +18,8 @@ __all__ = [
     "ResearchStatus",
     "TaskStatus",
     "HealthCheck",
+    "HealthCheckDetail",
+    "ComponentHealth",
     "BatchResearchRequest",
     "BatchResearchResponse"
 ]

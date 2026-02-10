@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 
 from config import settings
 from src.api.schemas import HealthCheck
-from src.api.routes import research_router, settings_router
+from src.api.routes import research_router, settings_router, health_router
 from src.api.dependencies import get_available_tools
 
 
@@ -114,13 +114,14 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# 健康检查
+# 健康检查 (简单版本,保留兼容性)
 @app.get("/health", response_model=HealthCheck, tags=["System"])
-async def health_check():
+async def simple_health_check():
     """
-    健康检查端点
+    简单健康检查端点 (保留兼容性)
     
-    返回服务状态和配置信息。
+    返回服务基本状态和配置信息。
+    如需详细的组件健康检查,请使用 GET /api/health
     """
     return HealthCheck(
         status="healthy",
@@ -142,11 +143,13 @@ async def root():
         "message": "Welcome to xSmartDeepResearch API",
         "version": "0.1.0",
         "docs": "/docs",
-        "health": "/health"
+        "health": "/health",
+        "health_detail": "/api/health"
     }
 
 
 # 注册路由
+app.include_router(health_router, prefix="/api")
 app.include_router(research_router, prefix="/api/v1")
 app.include_router(settings_router, prefix="/api/v1")
 
