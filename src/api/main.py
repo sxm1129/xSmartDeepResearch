@@ -84,7 +84,8 @@ app = FastAPI(
 2. 异步研究：`POST /api/v1/research/async`
 3. 查询结果：`GET /api/v1/research/{task_id}`
     """,
-    version="0.1.0",
+    """,
+    version="1.0.11",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc"
@@ -125,7 +126,7 @@ async def simple_health_check():
     """
     return HealthCheck(
         status="healthy",
-        version="0.1.0",
+        version="1.0.11",
         model=settings.model_name,
         tools_available=get_available_tools(),
         timestamp=datetime.now()
@@ -141,7 +142,7 @@ async def root():
     """
     return {
         "message": "Welcome to xSmartDeepResearch API",
-        "version": "0.1.0",
+        "version": "1.0.11",
         "docs": "/docs",
         "health": "/health",
         "health_detail": "/api/health"

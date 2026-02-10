@@ -98,13 +98,14 @@ export const translations = {
         leaveEmptyToKeep: 'Leave empty to keep current key',
         settingsSaved: 'Settings saved successfully!',
         saveFailed: 'Failed to save settings.',
+        jinaKey: 'Jina API Key',
+        systemVersion: 'System Version',
 
         // Missing Keys
         noHistoryFound: 'No research history found.',
         startNewResearchHint: 'Start a new research to see it here.',
 
         // Delete Feature
-        delete: 'Delete',
         delete: 'Delete',
         deleteResearch: 'Delete Research',
         cancel: 'Cancel',
@@ -208,13 +209,14 @@ export const translations = {
         leaveEmptyToKeep: '留空以保留当前密钥',
         settingsSaved: '设置保存成功！',
         saveFailed: '设置保存失败。',
+        jinaKey: 'Jina API Key',
+        systemVersion: '系统版本',
 
         // Missing Keys
         noHistoryFound: '暂无研究历史。',
         startNewResearchHint: '开始一项新研究即可在这里查看。',
 
         // Delete Feature
-        delete: '删除',
         delete: '删除',
         deleteResearch: '删除研究',
         cancel: '取消',

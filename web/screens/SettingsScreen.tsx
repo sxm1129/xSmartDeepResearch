@@ -13,7 +13,6 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
         top_p: 0.9,
         max_iterations: 10,
         max_context_tokens: 32000,
-        max_context_tokens: 32000,
         openrouter_api_key_masked: '',
         serper_api_key_masked: '',
         jina_api_key_masked: ''
@@ -317,6 +316,17 @@ export const SettingsScreen: React.FC<{ onShowError: () => void }> = ({ onShowEr
                                         />
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+
+
+                        {/* System Version */}
+                        <div className="flex justify-center mt-6 mb-2">
+                            <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-full border border-slate-200 shadow-sm">
+                                <Icon name="info" className="text-slate-400 text-sm" />
+                                <span className="text-xs font-mono font-medium text-slate-500">
+                                    System Version: <span className="text-slate-700 font-bold">V1.0.11</span>
+                                </span>
                             </div>
                         </div>
 

@@ -12,6 +12,7 @@ WORKDIR /app/web
 COPY web/package*.json ./
 
 # Install dependencies
+RUN npm config set registry https://registry.npmmirror.com
 RUN npm ci --legacy-peer-deps
 
 # Copy frontend source and build
@@ -34,6 +35,10 @@ ENV PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app
 
 # Install system dependencies (nginx, supervisor, and build tools)
+# Use Aliyun mirror for Debian
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources && \
+    sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources
+
 RUN apt-get update && \
     for i in 1 2 3; do \
     apt-get install -y --no-install-recommends --fix-missing \
