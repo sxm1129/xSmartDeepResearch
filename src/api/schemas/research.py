@@ -24,6 +24,11 @@ class ResearchRequest(BaseModel):
     max_iterations: Optional[int] = Field(default=None, ge=1, le=100, description="最大迭代次数")
     tools: Optional[List[str]] = Field(default=None, description="启用的工具列表，None表示全部")
     stream: bool = Field(default=False, description="是否启用流式输出")
+    callback_url: Optional[str] = Field(default=None, description="Webhook回调URL，每个进度事件会POST到此地址")
+    callback_events: Optional[List[str]] = Field(
+        default=None,
+        description="需要回调的事件类型，None表示全部。可选: status/think/tool_start/tool_response/answer/final_answer/error"
+    )
     
     class Config:
         json_schema_extra = {
@@ -31,7 +36,9 @@ class ResearchRequest(BaseModel):
                 "question": "2024年诺贝尔物理学奖得主是谁？",
                 "max_iterations": 50,
                 "tools": None,
-                "stream": False
+                "stream": False,
+                "callback_url": "http://my-service:9000/webhook/research",
+                "callback_events": ["status", "think", "answer", "final_answer", "error"]
             }
         }
 

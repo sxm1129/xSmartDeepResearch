@@ -2,9 +2,10 @@
 
 import uuid
 import asyncio
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 
+import httpx
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 from fastapi.responses import StreamingResponse
 import json
@@ -174,9 +175,43 @@ async def create_async_research(
     )
 
 
+async def _dispatch_webhook(
+    callback_url: str,
+    event: dict,
+    callback_events: Optional[List[str]] = None
+):
+    """向回调URL发送进度事件
+    
+    Args:
+        callback_url: 回调地址
+        event: 事件字典 (type, content, ...)
+        callback_events: 事件类型过滤列表, None 表示全部发送
+    """
+    if callback_events and event.get("type") not in callback_events:
+        return
+    
+    payload = {
+        "task_id": event.get("task_id"),
+        "type": event["type"],
+        "content": event.get("content", ""),
+        "iteration": event.get("iteration"),
+        "tool": event.get("tool"),
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(callback_url, json=payload)
+    except Exception as e:
+        logger.warning(f"Webhook dispatch to {callback_url} failed: {e}")
+
+
 async def _run_research_task(task_id: str, request: ResearchRequest):
-    """后台执行研究任务"""
+    """后台执行研究任务 (支持Webhook回调)"""
     session_manager = get_session_manager()
+    callback_url = request.callback_url
+    callback_events = request.callback_events
+    
     try:
         await asyncio.to_thread(session_manager.update_research_task, task_id, {"status": ResearchStatus.RUNNING})
         
@@ -184,19 +219,36 @@ async def _run_research_task(task_id: str, request: ResearchRequest):
         from config import settings
         agent.max_iterations = request.max_iterations or settings.max_llm_call_per_run
         
-        # 在线程池中执行同步代码
-        loop = asyncio.get_event_loop()
-        result = await agent.run(request.question)
+        # 使用 stream_run 消费事件, 支持 webhook 回调
+        final_answer_data = None
+        async for event in agent.stream_run(request.question):
+            event["task_id"] = task_id
+            
+            # Webhook 回调
+            if callback_url:
+                await _dispatch_webhook(callback_url, event, callback_events)
+            
+            if event.get("type") == "final_answer":
+                final_answer_data = event
         
-        await asyncio.to_thread(session_manager.update_research_task, task_id, {
-            "status": ResearchStatus.COMPLETED,
-            "answer": result.prediction,
-            "iterations": result.iterations,
-            "execution_time": result.execution_time,
-            "termination_reason": result.termination
-        })
+        # 更新 DB
+        update_data = {"status": ResearchStatus.COMPLETED}
+        if final_answer_data:
+            update_data.update({
+                "answer": final_answer_data.get("content", ""),
+                "iterations": final_answer_data.get("iterations", 0),
+                "execution_time": 0,
+                "termination_reason": final_answer_data.get("termination", "answer")
+            })
+        await asyncio.to_thread(session_manager.update_research_task, task_id, update_data)
         
     except Exception as e:
+        # 错误也回调通知
+        if callback_url:
+            await _dispatch_webhook(callback_url, {
+                "task_id": task_id, "type": "error", "content": str(e)
+            }, callback_events)
+        
         await asyncio.to_thread(session_manager.update_research_task, task_id, {
             "status": ResearchStatus.FAILED,
             "answer": f"Error: {str(e)}",
