@@ -1,0 +1,30 @@
+# Python bytecode (avoid shipping stale .pyc from different Python versions)
+**/__pycache__
+**/*.pyc
+**/*.pyo
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+
+# Node modules (frontend uses its own install in Docker)
+web/node_modules
+web/dist
+
+# Docker
+docker
+deploy/docker-compose*.yml
+
+# Docs & tests
+docs
+.tasks
+*.md
+!requirements.txt
+
+# Env
+.env
+.env.*
