@@ -38,10 +38,16 @@ class SemanticCacheManager:
             import chromadb
             from chromadb.utils import embedding_functions
             
+            # Use local model cache (pre-downloaded in Docker image)
+            # Prevent any network calls to HuggingFace
+            os.environ.setdefault("HF_HUB_OFFLINE", "1")
+            os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+            
             logger.info("Initializing semantic cache (lazy)...")
             self._client = chromadb.PersistentClient(path=self.persist_directory)
             
-            # 使用默认的 embedding 函数 (可能会下载模型)
+            # Model is pre-cached at /app/.hf_cache in Docker image
+            cache_dir = os.environ.get("HF_HOME", "/app/.hf_cache")
             self._embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
                 model_name="all-MiniLM-L6-v2"
             )

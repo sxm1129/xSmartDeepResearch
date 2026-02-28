@@ -72,6 +72,13 @@ RUN pip install --no-cache-dir --default-timeout=1000 \
     --trusted-host mirrors.aliyun.com \
     -r requirements.txt
 
+# Step 3: Pre-download sentence-transformers model from ModelScope (China mirror)
+ENV HF_HOME=/app/.hf_cache
+ENV SENTENCE_TRANSFORMERS_HOME=/app/models
+RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com modelscope && \
+    python -c "from modelscope import snapshot_download; snapshot_download('sentence-transformers/all-MiniLM-L6-v2', cache_dir='/app/models')" && \
+    pip uninstall -y modelscope
+
 # Copy backend source code
 COPY src/ ./src/
 COPY config/ ./config/
