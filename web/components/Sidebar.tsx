@@ -3,6 +3,10 @@ import { View, NavItem } from '../types';
 import { Icon } from './Icon';
 import { LanguageContext } from '../App';
 
+// Injected by Vite at build time from VERSION file
+declare const __APP_VERSION__: string;
+const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
+
 interface SidebarProps {
   currentView: View;
   isCollapsed: boolean;
@@ -120,6 +124,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, isCollapsed, onTo
               <div className="flex-1 min-w-0 animate-in fade-in duration-500">
                 <p className="text-xs font-medium text-zinc-700 truncate">Dr. Researcher</p>
               </div>
+            )}
+          </div>
+
+          {/* Version Display */}
+          <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-1.5'}`} title={`Version ${APP_VERSION}`}>
+            <Icon name="info" className="text-[14px] text-zinc-300" />
+            {!isCollapsed && (
+              <span className="text-[10px] text-zinc-400 font-mono tracking-wide animate-in fade-in duration-500">
+                v{APP_VERSION}
+              </span>
             )}
           </div>
         </div>

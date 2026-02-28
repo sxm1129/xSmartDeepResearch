@@ -5,7 +5,7 @@ version: '3.8'
 
 services:
   xsmart-deepresearch:
-    image: crpi-feit7ei40cgu7xjt.cn-shenzhen.personal.cr.aliyuncs.com/sxm1129/xsmart-deepresearch:1.0.11
+    image: crpi-feit7ei40cgu7xjt.cn-shenzhen.personal.cr.aliyuncs.com/sxm1129/xsmart-deepresearch:1.0.13
     container_name: xsmart-deepresearch
     ports:
       - "4004:80" # 前端：宿主机4004 → 容器80

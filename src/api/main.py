@@ -20,6 +20,17 @@ from src.api.schemas import HealthCheck
 from src.api.routes import research_router, settings_router, health_router
 from src.api.dependencies import get_available_tools
 
+# Read version from VERSION file (single source of truth)
+def _read_version() -> str:
+    try:
+        version_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'VERSION')
+        with open(version_file) as f:
+            return f.read().strip()
+    except:
+        return "0.0.0"
+
+APP_VERSION = _read_version()
+
 
 # 应用生命周期管理
 @asynccontextmanager
@@ -84,7 +95,7 @@ app = FastAPI(
 2. 异步研究：`POST /api/v1/research/async`
 3. 查询结果：`GET /api/v1/research/{task_id}`
     """,
-    version="1.0.11",
+    version=APP_VERSION,
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc"
@@ -125,7 +136,7 @@ async def simple_health_check():
     """
     return HealthCheck(
         status="healthy",
-        version="1.0.11",
+        version=APP_VERSION,
         model=settings.model_name,
         tools_available=get_available_tools(),
         timestamp=datetime.now()
@@ -141,7 +152,7 @@ async def root():
     """
     return {
         "message": "Welcome to xSmartDeepResearch API",
-        "version": "1.0.11",
+        "version": APP_VERSION,
         "docs": "/docs",
         "health": "/health",
         "health_detail": "/api/health"

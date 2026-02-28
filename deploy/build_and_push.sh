@@ -10,7 +10,10 @@ set -e
 REGISTRY="crpi-feit7ei40cgu7xjt.cn-shenzhen.personal.cr.aliyuncs.com"
 NAMESPACE="sxm1129"
 IMAGE_NAME="xsmart-deepresearch"
-VERSION="${1:-1.0.0}"
+
+# Read version: CLI arg > VERSION file > default
+DEFAULT_VERSION=$(cat "$(dirname "$0")/../VERSION" 2>/dev/null | tr -d '[:space:]' || echo "1.0.0")
+VERSION="${1:-$DEFAULT_VERSION}"
 
 FULL_IMAGE_NAME="${REGISTRY}/${NAMESPACE}/${IMAGE_NAME}"
 
@@ -41,6 +44,7 @@ fi
 
 docker buildx build \
     --platform linux/amd64 \
+    --build-arg APP_VERSION=${VERSION} \
     -t ${FULL_IMAGE_NAME}:${VERSION} \
     -t ${FULL_IMAGE_NAME}:latest \
     -f deploy/Dockerfile.unified \
