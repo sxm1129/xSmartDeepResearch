@@ -356,13 +356,24 @@ class xSmartReactAgent:
                     }
                     return
 
-        yield {"type": "error", "content": "Max iterations exceeded"}
+        # Max iterations reached — force summarize from collected data
+        yield {"type": "status", "content": "Max iterations reached, generating final summary from collected research..."}
+        try:
+            res = await self._force_summarize(messages, question, "", start_time, iterations)
+            prediction = res.prediction
+            termination = res.termination
+            yield {"type": "answer", "content": prediction}
+        except Exception as e:
+            logger.error(f"Force summarize failed: {e}")
+            prediction = "Max iterations reached without final answer"
+            termination = "max_iterations_exceeded"
+        
         yield {
             "type": "final_answer", 
-            "content": "Max iterations reached without final answer", 
+            "content": prediction, 
             "messages": messages, 
             "iterations": iterations,
-            "termination": "max_iterations_exceeded"
+            "termination": termination
         }
 
     

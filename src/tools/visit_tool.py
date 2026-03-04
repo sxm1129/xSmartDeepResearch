@@ -133,13 +133,19 @@ class VisitTool(BaseTool):
         # 2. 截断到最大token数
         content = self._truncate_to_tokens(content, self.max_content_tokens)
         
-        # 3. 使用LLM摘要
+        # 3. 使用LLM摘要 (带降级: 如果摘要失败则返回原始内容)
         if self.summary_client:
             summary = await self._summarize(content, url, goal)
+            # 如果摘要失败（403区域限制等），降级为原始内容
+            if summary.startswith("[Visit] Error") or "could not be processed" in summary:
+                logger.warning(f"[Visit] Summary failed for {url}, falling back to raw content")
+                raw_content = self._format_raw_content(url, goal, content)
+                cache_manager.set("visit", cache_key, raw_content, expire_seconds=settings.cache_expiry_visit)
+                semantic_cache.set("visit", f"{goal}:{url}", raw_content)
+                return raw_content
             # 写入缓存
-            if not summary.startswith("[Visit] Error"):
-                cache_manager.set("visit", cache_key, summary, expire_seconds=settings.cache_expiry_visit)
-                semantic_cache.set("visit", f"{goal}:{url}", summary)
+            cache_manager.set("visit", cache_key, summary, expire_seconds=settings.cache_expiry_visit)
+            semantic_cache.set("visit", f"{goal}:{url}", summary)
             return summary
         else:
             # 如果没有摘要客户端，直接返回截断的内容
@@ -258,7 +264,10 @@ class VisitTool(BaseTool):
                 return self._format_error(url, goal, "Failed to parse chunk summary.")
                 
         except Exception as e:
-            return self._format_error(url, goal, f"Chunk summary generation failed: {str(e)}")
+            error_str = str(e)
+            logger.warning(f"[Visit] Chunk summary failed: {error_str}")
+            # 返回标记错误，由 _process_single_url 决定是否降级
+            return f"[Visit] Error: {error_str}"
     
     def _truncate_to_tokens(self, text: str, max_tokens: int) -> str:
         """截断文本到指定token数

@@ -42,6 +42,7 @@ async def stream_research(
     流式执行研究任务 (SSE)
     
     实时返回研究过程中的思考、工具调用和最终结果。
+    内置心跳保活机制，防止代理/客户端超时断开。
     """
     async def event_generator():
         agent = get_agent()
@@ -50,55 +51,88 @@ async def stream_research(
         agent.max_iterations = research_request.max_iterations or settings.max_llm_call_per_run
         
         task_id = str(uuid.uuid4())[:8]
-        try:
-            # Create task record
-            await asyncio.to_thread(
-                session_manager.create_research_task,
-                task_id=task_id,
-                question=research_request.question,
-                status=ResearchStatus.RUNNING
-            )
+        queue = asyncio.Queue()
+        done_event = asyncio.Event()
+        
+        async def heartbeat_task():
+            """每15秒发送SSE心跳注释，防止代理超时"""
+            while not done_event.is_set():
+                try:
+                    await asyncio.wait_for(done_event.wait(), timeout=15)
+                    break  # done_event was set
+                except asyncio.TimeoutError:
+                    await queue.put(": keepalive\n\n")
+        
+        async def research_task():
+            """执行研究并将事件推入队列"""
+            try:
+                await asyncio.to_thread(
+                    session_manager.create_research_task,
+                    task_id=task_id,
+                    question=research_request.question,
+                    status=ResearchStatus.RUNNING
+                )
 
-            final_answer_data = None
-            
-            # Send initial task_created event
-            yield f"data: {json.dumps({'type': 'task_created', 'content': 'Task initiated', 'task_id': task_id}, ensure_ascii=False)}\n\n"
-            
-            async for event in agent.stream_run(research_request.question):
-                # Check client disconnection
-                if await request.is_disconnected():
-                    logger.info("Client disconnected, stopping research stream.")
-                    break
+                final_answer_data = None
                 
-                # Capture final result if yielded
-                if isinstance(event, dict) and event.get("type") == "final_answer":
-                    final_answer_data = event
+                await queue.put(f"data: {json.dumps({'type': 'task_created', 'content': 'Task initiated', 'task_id': task_id}, ensure_ascii=False)}\n\n")
                 
-                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-                await asyncio.sleep(0.01)
-            
-            # Update task on completion
-            update_data = {"status": ResearchStatus.COMPLETED}
-            if final_answer_data:
-                update_data.update({
-                    "answer": final_answer_data.get("content", ""),
-                    "iterations": final_answer_data.get("iterations", 0),
-                    "termination_reason": final_answer_data.get("termination", "answer")
+                async for event in agent.stream_run(research_request.question):
+                    if await request.is_disconnected():
+                        logger.info("Client disconnected, stopping research stream.")
+                        break
+                    
+                    if isinstance(event, dict) and event.get("type") == "final_answer":
+                        final_answer_data = event
+                    
+                    await queue.put(f"data: {json.dumps(event, ensure_ascii=False)}\n\n")
+                
+                # Update task on completion
+                update_data = {"status": ResearchStatus.COMPLETED}
+                if final_answer_data:
+                    update_data.update({
+                        "answer": final_answer_data.get("content", ""),
+                        "iterations": final_answer_data.get("iterations", 0),
+                        "termination_reason": final_answer_data.get("termination", "answer")
+                    })
+                
+                await asyncio.to_thread(session_manager.update_research_task, task_id, update_data)
+
+            except Exception as e:
+                logger.error(f"Stream research failed: {e}")
+                await asyncio.to_thread(session_manager.update_research_task, task_id, {
+                    "status": ResearchStatus.FAILED,
+                    "termination_reason": str(e)
                 })
-            
-            await asyncio.to_thread(session_manager.update_research_task, task_id, update_data)
-
-        except Exception as e:
-            logger.error(f"Stream research failed: {e}")
-            await asyncio.to_thread(session_manager.update_research_task, task_id, {
-                "status": ResearchStatus.FAILED,
-                "termination_reason": str(e)
-            })
-            yield f"data: {json.dumps({'type': 'error', 'content': str(e)}, ensure_ascii=False)}\n\n"
+                await queue.put(f"data: {json.dumps({'type': 'error', 'content': str(e)}, ensure_ascii=False)}\n\n")
+            finally:
+                done_event.set()
+                await queue.put(None)  # Sentinel to stop yielding
+        
+        # Start both tasks
+        heartbeat = asyncio.create_task(heartbeat_task())
+        research = asyncio.create_task(research_task())
+        
+        try:
+            while True:
+                item = await queue.get()
+                if item is None:
+                    break
+                yield item
+        finally:
+            done_event.set()
+            heartbeat.cancel()
+            if not research.done():
+                research.cancel()
 
     return StreamingResponse(
         event_generator(),
-        media_type="text/event-stream"
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
     )
 
 
