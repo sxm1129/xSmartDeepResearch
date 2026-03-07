@@ -132,7 +132,7 @@ async def stream_advanced_research(
     async def event_generator():
         agent = get_agent()
         from config import settings
-        agent.max_iterations = research_request.max_iterations or settings.max_llm_call_per_run
+        effective_max_iterations = research_request.max_iterations or settings.max_llm_call_per_run
         
         task_id = str(uuid.uuid4())[:8]
         queue = asyncio.Queue()
@@ -163,7 +163,7 @@ async def stream_advanced_research(
                 await queue.put(f"data: {json.dumps({'type': 'task_created', 'content': 'Advanced research initiated', 'task_id': task_id, 'original_question': research_request.original_question, 'refined_query': research_request.refined_query}, ensure_ascii=False)}\n\n")
                 
                 # 使用精炼后的查询调用现有 Agent
-                async for event in agent.stream_run(research_request.refined_query):
+                async for event in agent.stream_run(research_request.refined_query, max_iterations=effective_max_iterations):
                     if await request.is_disconnected():
                         logger.info("Client disconnected, stopping advanced research stream.")
                         break

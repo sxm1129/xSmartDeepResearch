@@ -7,6 +7,7 @@ import pickle
 
 import redis
 from config import settings
+from src.utils.logger import logger
 
 
 class CacheManager:
@@ -26,7 +27,7 @@ class CacheManager:
                 cls._instance.redis_client.ping()
                 cls._instance.enabled = True
             except Exception as e:
-                print(f"⚠️ Redis connection failed: {e}. Caching disabled.")
+                logger.warning(f"Redis connection failed: {e}. Caching disabled.")
                 cls._instance.enabled = False
         return cls._instance
     
@@ -51,7 +52,7 @@ class CacheManager:
             if data:
                 return pickle.loads(data)
         except Exception as e:
-            print(f"Cache get error: {e}")
+            logger.error(f"Cache get error: {e}")
         
         return None
     
@@ -65,7 +66,7 @@ class CacheManager:
             data = pickle.dumps(value)
             return self.redis_client.set(key, data, ex=expire_seconds)
         except Exception as e:
-            print(f"Cache set error: {e}")
+            logger.error(f"Cache set error: {e}")
             return False
     
     def delete(self, prefix: str, key_data: Any) -> bool:
@@ -77,7 +78,7 @@ class CacheManager:
             key = self._generate_key(prefix, key_data)
             return bool(self.redis_client.delete(key))
         except Exception as e:
-            print(f"Cache delete error: {e}")
+            logger.error(f"Cache delete error: {e}")
             return False
 
 

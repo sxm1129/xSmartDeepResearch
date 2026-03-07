@@ -82,6 +82,11 @@ class SearchTool(BaseTool):
         cached_result = cache_manager.get("search", query)
         if cached_result:
             return cached_result
+        
+        # 语义缓存检查
+        semantic_result = semantic_cache.get("search", query)
+        if semantic_result:
+            return semantic_result
 
         # 检测语言
         is_chinese = self._contains_chinese(query)
@@ -106,73 +111,7 @@ class SearchTool(BaseTool):
         except Exception as e:
             return f"[Search] Error: {str(e)}"
     
-    def _search_single(self, query: str) -> str:
-        """执行单个搜索查询
-        
-        Args:
-            query: 搜索查询
-            
-        Returns:
-            格式化的搜索结果
-        """
-        # 检查缓存
-        cached_result = cache_manager.get("search", query)
-        if cached_result:
-            logger.info(f"[Search] Cache hit for: {query}")
-            return cached_result
-            
-        # 语义缓存检查
-        semantic_result = semantic_cache.get("search", query)
-        if semantic_result:
-            return semantic_result
 
-        # 检测语言，设置搜索地区
-        is_chinese = self._contains_chinese(query)
-        
-        if is_chinese:
-            payload = {
-                "q": query,
-                "location": "China",
-                "gl": "cn",
-                "hl": "zh-cn"
-            }
-        else:
-            payload = {
-                "q": query,
-                "location": "United States",
-                "gl": "us",
-                "hl": "en"
-            }
-        
-        headers = {
-            'X-API-KEY': self.api_key,
-            'Content-Type': 'application/json'
-        }
-        
-        # 请求重试
-        for attempt in range(5):
-            try:
-                conn = http.client.HTTPSConnection(self.base_host)
-                conn.request("POST", "/search", json.dumps(payload), headers)
-                res = conn.getresponse()
-                data = res.read()
-                conn.close()
-                
-                results = json.loads(data.decode("utf-8"))
-                formatted_result = self._format_results(query, results)
-                
-                # 写入缓存
-                cache_manager.set("search", query, formatted_result, expire_seconds=settings.cache_expiry_search)
-                semantic_cache.set("search", query, formatted_result)
-                
-                return formatted_result
-                
-            except Exception as e:
-                if attempt == 4:
-                    return f"Google search Timeout for '{query}'. Please try again later."
-                continue
-        
-        return f"Google search failed for '{query}'"
     
     def _format_results(self, query: str, results: Dict) -> str:
         """格式化搜索结果

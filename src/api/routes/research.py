@@ -46,9 +46,8 @@ async def stream_research(
     """
     async def event_generator():
         agent = get_agent()
-        # Fallback to global settings if not provided in request
         from config import settings
-        agent.max_iterations = research_request.max_iterations or settings.max_llm_call_per_run
+        effective_max_iterations = research_request.max_iterations or settings.max_llm_call_per_run
         
         task_id = str(uuid.uuid4())[:8]
         queue = asyncio.Queue()
@@ -77,7 +76,7 @@ async def stream_research(
                 
                 await queue.put(f"data: {json.dumps({'type': 'task_created', 'content': 'Task initiated', 'task_id': task_id}, ensure_ascii=False)}\n\n")
                 
-                async for event in agent.stream_run(research_request.question):
+                async for event in agent.stream_run(research_request.question, max_iterations=effective_max_iterations):
                     if await request.is_disconnected():
                         logger.info("Client disconnected, stopping research stream.")
                         break
@@ -150,13 +149,11 @@ async def create_research(
     
     try:
         agent = get_agent()
-        
-        # 设置迭代次数 (Fallback to global settings)
         from config import settings
-        agent.max_iterations = request.max_iterations or settings.max_llm_call_per_run
+        effective_max_iterations = request.max_iterations or settings.max_llm_call_per_run
         
         # 执行研究
-        result = await agent.run(request.question)
+        result = await agent.run(request.question, max_iterations=effective_max_iterations)
         
         return ResearchResponse(
             task_id=task_id,
@@ -251,11 +248,11 @@ async def _run_research_task(task_id: str, request: ResearchRequest):
         
         agent = get_agent()
         from config import settings
-        agent.max_iterations = request.max_iterations or settings.max_llm_call_per_run
+        effective_max_iterations = request.max_iterations or settings.max_llm_call_per_run
         
         # 使用 stream_run 消费事件, 支持 webhook 回调
         final_answer_data = None
-        async for event in agent.stream_run(request.question):
+        async for event in agent.stream_run(request.question, max_iterations=effective_max_iterations):
             event["task_id"] = task_id
             
             # Webhook 回调
@@ -355,7 +352,8 @@ async def get_research_status(task_id: str):
     # 计算进度
     progress = None
     if task["status"] == ResearchStatus.RUNNING:
-        max_iter = 50  # 默认最大迭代
+        from config import settings as app_settings
+        max_iter = app_settings.max_llm_call_per_run or 50
         progress = min(100, int(task.get("iterations", 0) / max_iter * 100))
     elif task["status"] == ResearchStatus.COMPLETED:
         progress = 100
@@ -384,10 +382,6 @@ async def create_batch_research(
     
     for question in request.questions:
         task_id = str(uuid.uuid4())[:10]
-        task_ids.append(task_id)
-        
-        task_ids.append(task_id)
-        
         task_ids.append(task_id)
         
         # 初始化任务状态 (MySQL)
@@ -427,7 +421,7 @@ async def cancel_research(task_id: str, force: bool = False):
     - 如果任务已完成/失败 或 force=True: 从数据库永久删除
     """
     session_manager = get_session_manager()
-    task = session_manager.get_research_task(task_id)
+    task = await asyncio.to_thread(session_manager.get_research_task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
     
@@ -456,7 +450,7 @@ async def toggle_bookmark(task_id: str):
     """
     # Check existence
     session_manager = get_session_manager()
-    task = session_manager.get_research_task(task_id)
+    task = await asyncio.to_thread(session_manager.get_research_task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
         

@@ -144,7 +144,7 @@ class SessionManager:
     def create_session(self, title: str, intent_category: str = "general", project_id: str = None) -> str:
         """创建新会话"""
         session_id = str(uuid.uuid4())
-        
+        conn = None
         try:
             conn = self._get_connection(self.db_name)
             cursor = conn.cursor()
@@ -155,38 +155,40 @@ class SessionManager:
             )
             
             conn.commit()
-            conn.close()
             return session_id
         except Exception as e:
             logger.error(f"Failed to create session: {e}")
             return None
+        finally:
+            if conn:
+                conn.close()
 
     def add_message(self, session_id: str, role: str, content: str, metadata: Dict[str, Any] = None):
         """添加消息记录"""
+        conn = None
         try:
             conn = self._get_connection(self.db_name)
             cursor = conn.cursor()
             
             meta_json = json.dumps(metadata, ensure_ascii=False) if metadata else "{}"
             
-            # MySQL metadata 是 JSON 类型，直接传字符串或 json dump
             cursor.execute(
                 "INSERT INTO messages (session_id, role, content, metadata) VALUES (%s, %s, %s, %s)",
                 (session_id, role, content, meta_json)
             )
             
-            # update_at 会通过 ON UPDATE 自动更新
-             # Simple touch to ensure updated_at changes if wanted, but MySQL triggers usually handle it. 
-             # For explicit update:
             cursor.execute("UPDATE sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = %s", (session_id,))
             
             conn.commit()
-            conn.close()
         except Exception as e:
             logger.error(f"Failed to add message to session {session_id}: {e}")
+        finally:
+            if conn:
+                conn.close()
 
     def list_sessions(self, limit: int = 50) -> List[Dict[str, Any]]:
         """列出最近会话"""
+        conn = None
         try:
             conn = self._get_connection(self.db_name)
             cursor = conn.cursor()
@@ -196,10 +198,8 @@ class SessionManager:
                 (limit,)
             )
             
-            rows = cursor.fetchall()  # DictCursor returns dicts
-            conn.close()
+            rows = cursor.fetchall()
             
-            # datetime 转换 string
             for row in rows:
                 if isinstance(row.get('updated_at'), datetime):
                     row['updated_at'] = row['updated_at'].isoformat()
@@ -210,9 +210,13 @@ class SessionManager:
         except Exception as e:
             logger.error(f"Failed to list sessions: {e}")
             return []
+        finally:
+            if conn:
+                conn.close()
 
     def get_session_history(self, session_id: str) -> List[Dict[str, Any]]:
         """获取会话完整历史"""
+        conn = None
         try:
             conn = self._get_connection(self.db_name)
             cursor = conn.cursor()
@@ -223,7 +227,6 @@ class SessionManager:
             )
             
             rows = cursor.fetchall()
-            conn.close()
             
             history = []
             for row in rows:
@@ -240,22 +243,29 @@ class SessionManager:
         except Exception as e:
             logger.error(f"Failed to get history for session {session_id}: {e}")
             return []
+        finally:
+            if conn:
+                conn.close()
 
     def delete_session(self, session_id: str):
         """删除会话"""
+        conn = None
         try:
             conn = self._get_connection(self.db_name)
             cursor = conn.cursor()
             cursor.execute("DELETE FROM sessions WHERE id = %s", (session_id,))
             conn.commit()
-            conn.close()
         except Exception as e:
             logger.error(f"Failed to delete session {session_id}: {e}")
+        finally:
+            if conn:
+                conn.close()
 
     # --- Research Task Management ---
 
     def create_research_task(self, task_id: str, question: str, status: str = "pending"):
         """创建研究任务"""
+        conn = None
         try:
             conn = self._get_connection(self.db_name)
             cursor = conn.cursor()
@@ -266,12 +276,15 @@ class SessionManager:
             )
             
             conn.commit()
-            conn.close()
         except Exception as e:
             logger.error(f"Failed to create research task: {e}")
+        finally:
+            if conn:
+                conn.close()
 
     def delete_research_task(self, task_id: str):
         """删除研究任务"""
+        conn = None
         try:
             conn = self._get_connection(self.db_name)
             cursor = conn.cursor()
@@ -279,12 +292,15 @@ class SessionManager:
             cursor.execute("DELETE FROM research_tasks WHERE task_id = %s", (task_id,))
             
             conn.commit()
-            conn.close()
         except Exception as e:
             logger.error(f"Failed to delete research task {task_id}: {e}")
+        finally:
+            if conn:
+                conn.close()
 
     def update_research_task(self, task_id: str, update_data: Dict[str, Any]):
         """更新研究任务"""
+        conn = None
         try:
             conn = self._get_connection(self.db_name)
             cursor = conn.cursor()
@@ -303,19 +319,21 @@ class SessionManager:
             
             cursor.execute(sql, tuple(values))
             conn.commit()
-            conn.close()
         except Exception as e:
             logger.error(f"Failed to update research task {task_id}: {e}")
+        finally:
+            if conn:
+                conn.close()
 
     def get_research_task(self, task_id: str) -> Optional[Dict[str, Any]]:
         """获取单个任务详情"""
+        conn = None
         try:
             conn = self._get_connection(self.db_name)
             cursor = conn.cursor()
             
             cursor.execute("SELECT * FROM research_tasks WHERE task_id = %s", (task_id,))
             row = cursor.fetchone()
-            conn.close()
             
             if row:
                 self._format_datetime(row)
@@ -324,16 +342,19 @@ class SessionManager:
         except Exception as e:
             logger.error(f"Failed to get research task {task_id}: {e}")
             return None
+        finally:
+            if conn:
+                conn.close()
 
     def list_research_tasks(self, limit: int = 100) -> List[Dict[str, Any]]:
         """列出所有任务"""
+        conn = None
         try:
             conn = self._get_connection(self.db_name)
             cursor = conn.cursor()
             
             cursor.execute("SELECT * FROM research_tasks ORDER BY created_at DESC LIMIT %s", (limit,))
             rows = cursor.fetchall()
-            conn.close()
             
             for row in rows:
                 self._format_datetime(row)
@@ -341,14 +362,17 @@ class SessionManager:
         except Exception as e:
             logger.error(f"Failed to list research tasks: {e}")
             return []
+        finally:
+            if conn:
+                conn.close()
 
     def toggle_research_bookmark(self, task_id: str) -> bool:
         """切换收藏状态"""
+        conn = None
         try:
             conn = self._get_connection(self.db_name)
             cursor = conn.cursor()
             
-            # Check current status
             cursor.execute("SELECT is_bookmarked FROM research_tasks WHERE task_id = %s", (task_id,))
             result = cursor.fetchone()
             if not result:
@@ -361,11 +385,13 @@ class SessionManager:
                 (new_status, task_id)
             )
             conn.commit()
-            conn.close()
             return new_status
         except Exception as e:
             logger.error(f"Failed to toggle bookmark for {task_id}: {e}")
             return False
+        finally:
+            if conn:
+                conn.close()
 
     def _format_datetime(self, row: Dict[str, Any]):
         """Helper to format datetime objects to string in place"""
@@ -378,6 +404,7 @@ class SessionManager:
 
     def save_setting(self, key: str, value: str):
         """保存系统设置"""
+        conn = None
         try:
             conn = self._get_connection(self.db_name)
             cursor = conn.cursor()
@@ -388,21 +415,26 @@ class SessionManager:
             )
             
             conn.commit()
-            conn.close()
         except Exception as e:
             logger.error(f"Failed to save setting {key}: {e}")
+        finally:
+            if conn:
+                conn.close()
 
     def get_all_settings(self) -> Dict[str, str]:
         """获取所有系统设置"""
+        conn = None
         try:
             conn = self._get_connection(self.db_name)
             cursor = conn.cursor()
             
             cursor.execute("SELECT setting_key, setting_value FROM system_settings")
-            rows = cursor.fetchall()  # List of dicts
-            conn.close()
+            rows = cursor.fetchall()
             
             return {row['setting_key']: row['setting_value'] for row in rows}
         except Exception as e:
             logger.error(f"Failed to get settings: {e}")
             return {}
+        finally:
+            if conn:
+                conn.close()
