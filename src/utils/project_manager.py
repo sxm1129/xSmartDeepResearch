@@ -32,6 +32,7 @@ class ProjectManager:
     def create_project(self, name: str, description: str = "") -> str:
         """创建新的研究项目"""
         project_id = str(uuid.uuid4())
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -42,14 +43,17 @@ class ProjectManager:
             )
             
             conn.commit()
-            conn.close()
             return project_id
         except Exception as e:
             logger.error(f"Failed to create project: {e}")
             return None
+        finally:
+            if conn:
+                conn.close()
 
     def list_projects(self, status: str = "active") -> List[Dict[str, Any]]:
         """列出所有项目"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -59,9 +63,7 @@ class ProjectManager:
                 (status,)
             )
             rows = cursor.fetchall()
-            conn.close()
             
-            # Format datetime
             for row in rows:
                 if isinstance(row.get('updated_at'), datetime):
                     row['updated_at'] = row['updated_at'].isoformat()
@@ -72,9 +74,13 @@ class ProjectManager:
         except Exception as e:
             logger.error(f"Failed to list projects: {e}")
             return []
+        finally:
+            if conn:
+                conn.close()
 
     def get_project_sessions(self, project_id: str) -> List[Dict[str, Any]]:
         """获取项目下的所有会话"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -84,9 +90,7 @@ class ProjectManager:
                 (project_id,)
             )
             rows = cursor.fetchall()
-            conn.close()
             
-            # Format datetime
             for row in rows:
                 if isinstance(row.get('updated_at'), datetime):
                     row['updated_at'] = row['updated_at'].isoformat()
@@ -97,9 +101,13 @@ class ProjectManager:
         except Exception as e:
             logger.error(f"Failed to get project sessions: {e}")
             return []
+        finally:
+            if conn:
+                conn.close()
 
     def add_project_memory(self, project_id: str, key_fact: str, source_session_id: str = None):
         """向项目注入新的知识上下文"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -109,23 +117,24 @@ class ProjectManager:
                 (project_id, key_fact, source_session_id)
             )
             conn.commit()
-            conn.close()
         except Exception as e:
             logger.error(f"Failed to add memory: {e}")
+        finally:
+            if conn:
+                conn.close()
 
     def get_project_context(self, project_id: str, limit: int = 5) -> str:
         """获取项目相关的上下文知识 (构建 Prompt 用)"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
             
-            # 获取最近的 N 条核心事实
             cursor.execute(
                 "SELECT key_fact FROM project_memories WHERE project_id = %s ORDER BY created_at DESC LIMIT %s",
                 (project_id, limit)
             )
             rows = cursor.fetchall()
-            conn.close()
             
             if not rows:
                 return ""
@@ -138,10 +147,14 @@ class ProjectManager:
         except Exception as e:
             logger.error(f"Failed to get context: {e}")
             return ""
+        finally:
+            if conn:
+                conn.close()
 
     def ensure_default_project(self) -> str:
         """确保存在默认项目，用于存放旧会话"""
         default_id = "default-0000-0000-0000-000000000000"
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -153,7 +166,6 @@ class ProjectManager:
                     (default_id, "Default Project", "Auto-created for legacy sessions")
                 )
                 conn.commit()
-                # 迁移旧数据: 将所有没有 project_id 的 session 归入 default
                 cursor.execute(
                     "UPDATE sessions SET project_id = %s WHERE project_id IS NULL",
                     (default_id,)
@@ -161,8 +173,10 @@ class ProjectManager:
                 conn.commit()
                 logger.info("✅ Migrated legacy sessions to Default Project")
             
-            conn.close()
             return default_id
         except Exception as e:
             logger.error(f"Default project check failed: {e}")
             return None
+        finally:
+            if conn:
+                conn.close()

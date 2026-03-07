@@ -199,7 +199,7 @@ class VisitTool(BaseTool):
             return await self._summarize_chunk(content, url, goal)
         
         # 并行处理多个分段 (Map 阶段)
-        print(f"[Visit] Content too large ({len(tokens)} tokens), using Map-Reduce...")
+        logger.info(f"[Visit] Content too large ({len(tokens)} tokens), using Map-Reduce...")
         chunks = []
         for i in range(0, len(tokens), CHUNK_SIZE):
             chunk_tokens = tokens[i : i + CHUNK_SIZE]

@@ -122,7 +122,7 @@ class xSmartReactAgent:
         """
         self.tools[tool.name] = tool
     
-    async def run(self, question: str, ground_truth: str = "") -> ResearchResult:
+    async def run(self, question: str, ground_truth: str = "", max_iterations: int = None) -> ResearchResult:
         """执行研究任务 (异步版本)"""
         start_time = time.time()
         
@@ -132,7 +132,7 @@ class xSmartReactAgent:
         iterations = 0
         termination = "unknown"
         
-        async for event in self.stream_run(question):
+        async for event in self.stream_run(question, max_iterations=max_iterations):
             event_type = event.get("type")
             
             if event_type == "final_answer":
@@ -157,13 +157,18 @@ class xSmartReactAgent:
             iterations=iterations
         )
 
-    async def stream_run(self, question: str):
+    async def stream_run(self, question: str, max_iterations: int = None):
         """执行研究任务 (流式生成器版本)
+        
+        Args:
+            question: 用户的研究问题
+            max_iterations: 本次运行的最大迭代次数 (不修改实例属性)
         
         Yields:
             Dict[str, Any]: 包含 type 和 content 的事件字典
         """
         start_time = time.time()
+        effective_max_iterations = max_iterations or self.max_iterations
         
         # 🟢 步骤 1: 意图识别 (动态人设注入)
         yield {"type": "status", "content": "🔍 Identifying research intent..."}
@@ -202,7 +207,7 @@ class xSmartReactAgent:
         
         iterations = 0
         
-        while iterations < self.max_iterations:
+        while iterations < effective_max_iterations:
             elapsed_minutes = (time.time() - start_time) / 60
             if elapsed_minutes > self.timeout_minutes:
                 yield {"type": "timeout", "content": "Research timeout"}
@@ -337,7 +342,7 @@ class xSmartReactAgent:
             token_count = self._count_tokens(messages)
             if token_count > self.max_tokens:
                 # 如果还有很多步可以走，尝试剪枝而不是立即总结
-                if iterations < self.max_iterations - 3:
+                if iterations < effective_max_iterations - 3:
                     logger.info(f"Token count {token_count} exceeds {self.max_tokens}. Pruning context.")
                     messages = self._prune_messages(messages)
                     yield {"type": "status", "content": "Context pruned to save tokens."}
@@ -532,8 +537,8 @@ class xSmartReactAgent:
         iterations: int
     ) -> ResearchResult:
         """强制总结（token 超限时使用）"""
-        # 添加强制总结提示
-        messages[-1]["content"] = FORCE_SUMMARIZE_PROMPT
+        # 添加强制总结提示 (追加新消息，不覆盖原始内容)
+        messages.append({"role": "user", "content": FORCE_SUMMARIZE_PROMPT})
         
         # 再次调用 LLM
         response = await self._call_llm(messages)
