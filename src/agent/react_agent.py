@@ -157,44 +157,42 @@ class xSmartReactAgent:
             iterations=iterations
         )
 
-    async def stream_run(self, question: str, max_iterations: int = None):
+    async def stream_run(self, question: str, max_iterations: int = None, project_id: str = None):
         """执行研究任务 (流式生成器版本)
         
         Args:
             question: 用户的研究问题
             max_iterations: 本次运行的最大迭代次数 (不修改实例属性)
+            project_id: 项目 ID (可选，用于绑定会话)
         
         Yields:
             Dict[str, Any]: 包含 type 和 content 的事件字典
         """
         start_time = time.time()
         effective_max_iterations = max_iterations or self.max_iterations
+        # 使用局部变量避免并发请求互相覆盖 session
+        session_id = None
         
         # 🟢 步骤 1: 意图识别 (动态人设注入)
         yield {"type": "status", "content": "🔍 Identifying research intent..."}
-        # PERSIST: status
-        if self.current_session_id:
-             await asyncio.to_thread(self.session_manager.add_message, self.current_session_id, "status", "🔍 Identifying research intent...")
 
         intent = await self.classifier.aclassify(question)
         category = intent.get("category", "general")
         reason = intent.get("reason", "")
         status_msg = f"🎯 Intent: **{category.upper()}** ({reason})"
         yield {"type": "status", "content": status_msg}
-        # PERSIST: status (Create session happens next, so we can't persist this one yet unless we move session creation up. 
-        # Actually session creation is the next step. So we should persist this AFTER session creation.)
 
-        # 🔵 步骤 2: 创建会话持久化
-        self.current_session_id = await asyncio.to_thread(
+        # 🔵 步骤 2: 创建会话持久化 (使用局部变量)
+        session_id = await asyncio.to_thread(
             self.session_manager.create_session,
-            title=question[:50],  # 简单取前50字符作为标题
+            title=question[:50],
             intent_category=category,
-            project_id=self.current_project_id
+            project_id=project_id or self.current_project_id
         )
         # 记录用户问题
-        await asyncio.to_thread(self.session_manager.add_message, self.current_session_id, "user", question)
+        await asyncio.to_thread(self.session_manager.add_message, session_id, "user", question)
         # PERSIST: Delayed status messages
-        await asyncio.to_thread(self.session_manager.add_message, self.current_session_id, "status", status_msg)
+        await asyncio.to_thread(self.session_manager.add_message, session_id, "status", status_msg)
 
         # 构建初始消息
         tool_definitions = [tool.get_function_definition() for tool in self.tools.values()]
@@ -215,7 +213,7 @@ class xSmartReactAgent:
 
             iterations += 1
             yield {"type": "status", "content": f"Iteration {iterations}...", "iteration": iterations}
-            await asyncio.to_thread(self.session_manager.add_message, self.current_session_id, "status", f"Iteration {iterations}...")
+            await asyncio.to_thread(self.session_manager.add_message, session_id, "status", f"Iteration {iterations}...")
             
             # 调用 LLM
             response = await self._call_llm(messages)
@@ -242,14 +240,14 @@ class xSmartReactAgent:
                 if think_content:
                     yield {"type": "think", "content": think_content}
                     # 记录思考步骤
-                    await asyncio.to_thread(self.session_manager.add_message, self.current_session_id, "thought", think_content)
+                    await asyncio.to_thread(self.session_manager.add_message, session_id, "thought", think_content)
             
             # 检查是否有最终答案
             if self._has_answer(response):
                 prediction = self._extract_answer(response)
                 
                 # 记录最终答案
-                await asyncio.to_thread(self.session_manager.add_message, self.current_session_id, "answer", prediction)
+                await asyncio.to_thread(self.session_manager.add_message, session_id, "answer", prediction)
                 
                 yield {"type": "answer", "content": prediction}
                 yield {
@@ -306,7 +304,7 @@ class xSmartReactAgent:
                         # 记录工具调用的详细信息
                         await asyncio.to_thread(
                             self.session_manager.add_message,
-                            self.current_session_id, 
+                            session_id, 
                             "tool", 
                             f"Call: {tool_name}\nResult Length: {len(str(result))}",
                             metadata={"tool_name": tool_name}
@@ -315,7 +313,7 @@ class xSmartReactAgent:
                         # PERSIST: tool_response
                         await asyncio.to_thread(
                             self.session_manager.add_message,
-                            self.current_session_id,
+                            session_id,
                             "tool_response",
                             result,
                             metadata={"tool_name": tool_name}
@@ -346,10 +344,10 @@ class xSmartReactAgent:
                     logger.info(f"Token count {token_count} exceeds {self.max_tokens}. Pruning context.")
                     messages = self._prune_messages(messages)
                     yield {"type": "status", "content": "Context pruned to save tokens."}
-                    await asyncio.to_thread(self.session_manager.add_message, self.current_session_id, "status", "Context pruned to save tokens.")
+                    await asyncio.to_thread(self.session_manager.add_message, session_id, "status", "Context pruned to save tokens.")
                 else:
                     yield {"type": "status", "content": "Token limit reached, forcing final summary..."}
-                    await asyncio.to_thread(self.session_manager.add_message, self.current_session_id, "status", "Token limit reached, forcing final summary...")
+                    await asyncio.to_thread(self.session_manager.add_message, session_id, "status", "Token limit reached, forcing final summary...")
                     res = await self._force_summarize(messages, question, "", start_time, iterations)
                     yield {"type": "answer", "content": res.prediction}
                     yield {
@@ -385,6 +383,7 @@ class xSmartReactAgent:
     async def _call_llm(self, messages: List[Dict], max_retries: int = 10) -> str:
         """调用 LLM (异步)"""
         base_sleep_time = 1
+        empty_count = 0
         
         for attempt in range(max_retries):
             try:
@@ -401,6 +400,12 @@ class xSmartReactAgent:
                 content = response.choices[0].message.content
                 if content and content.strip():
                     return content.strip()
+                
+                # 空响应：最多重试 2 次，避免长时间等待
+                empty_count += 1
+                if empty_count >= 2:
+                    logger.warning(f"[LLM] Received {empty_count} consecutive empty responses, giving up")
+                    return "[LLM returned empty response after retries]"
                     
             except Exception as e:
                 logger.error(f"[LLM] Attempt {attempt + 1} failed: {e}")

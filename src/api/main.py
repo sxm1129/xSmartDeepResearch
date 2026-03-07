@@ -19,6 +19,7 @@ from config import settings
 from src.api.schemas import HealthCheck
 from src.api.routes import research_router, settings_router, health_router, advanced_research_router
 from src.api.dependencies import get_available_tools
+from src.utils.logger import logger
 
 # Read version from VERSION file (single source of truth)
 def _read_version() -> str:
@@ -37,7 +38,7 @@ APP_VERSION = _read_version()
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     # 启动时
-    print("🚀 xSmartDeepResearch API starting...")
+    logger.info("xSmartDeepResearch API starting...")
     
     # Load settings from DB
     from src.api.dependencies import get_session_manager
@@ -46,7 +47,7 @@ async def lifespan(app: FastAPI):
         db_settings = session_manager.get_all_settings()
         
         if db_settings:
-            print("📦 Loading settings from database...")
+            logger.info("Loading settings from database...")
             # Map DB keys to settings attributes
             for key, value in db_settings.items():
                 if hasattr(settings, key):
@@ -64,17 +65,17 @@ async def lifespan(app: FastAPI):
                         setattr(settings, key, value.lower() == 'true')
                     else:
                         setattr(settings, key, value)
-            print("✅ Settings loaded from DB")
+            logger.info("Settings loaded from DB")
     except Exception as e:
-        print(f"⚠️ Failed to load settings from DB: {e}")
+        logger.warning(f"Failed to load settings from DB: {e}")
 
-    print(f"   Model: {settings.model_name}")
-    print(f"   Tools: {get_available_tools()}")
+    logger.info(f"Model: {settings.model_name}")
+    logger.info(f"Tools: {get_available_tools()}")
     
     yield
     
     # 关闭时
-    print("👋 xSmartDeepResearch API shutting down...")
+    logger.info("xSmartDeepResearch API shutting down...")
 
 
 # 创建应用

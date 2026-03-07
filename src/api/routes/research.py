@@ -352,7 +352,8 @@ async def get_research_status(task_id: str):
     # 计算进度
     progress = None
     if task["status"] == ResearchStatus.RUNNING:
-        max_iter = 50  # 默认最大迭代
+        from config import settings as app_settings
+        max_iter = app_settings.max_llm_call_per_run or 50
         progress = min(100, int(task.get("iterations", 0) / max_iter * 100))
     elif task["status"] == ResearchStatus.COMPLETED:
         progress = 100
