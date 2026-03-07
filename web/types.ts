@@ -5,7 +5,8 @@ export enum View {
   SETTINGS = 'SETTINGS',
   SAVED_REPORTS = 'SAVED_REPORTS',
   WIZARD = 'WIZARD',
-  DETAIL = 'DETAIL'
+  DETAIL = 'DETAIL',
+  ADVANCED_RESEARCH = 'ADVANCED_RESEARCH'
 }
 
 export interface ResearchItem {

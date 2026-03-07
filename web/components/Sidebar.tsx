@@ -20,6 +20,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, isCollapsed, onTo
 
   const navItems: NavItem[] = [
     { icon: 'grid_view', label: t('dashboard'), view: View.DASHBOARD },
+    { icon: 'neurology', label: t('advancedResearch'), view: View.ADVANCED_RESEARCH },
     { icon: 'history', label: t('history'), view: View.HISTORY, activeIcon: 'history' },
     { icon: 'description', label: t('savedReports'), view: View.SAVED_REPORTS },
     { icon: 'settings', label: t('settings'), view: View.SETTINGS },
