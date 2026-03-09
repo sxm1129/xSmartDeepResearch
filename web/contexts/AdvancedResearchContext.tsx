@@ -224,6 +224,8 @@ export const AdvancedResearchProvider: React.FC<{ children: React.ReactNode }> =
             if (response.ready_to_research && response.refined_query) {
                 // Auto-start research with refined query
                 await executeResearch(response.refined_query, query);
+            } else {
+                setIsLoading(false);
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to process selection');
@@ -252,6 +254,8 @@ export const AdvancedResearchProvider: React.FC<{ children: React.ReactNode }> =
 
             if (response.ready_to_research && response.refined_query) {
                 await executeResearch(response.refined_query, query);
+            } else {
+                setIsLoading(false);
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to process custom direction');

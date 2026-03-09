@@ -147,7 +147,7 @@ class IntentClarifier:
             
             if not directions:
                 # Fallback: 如果 LLM 没有返回有效方向，生成默认方向
-                directions = self._generate_fallback_directions(question)
+                directions = self._generate_fallback_directions(question, language)
             
             logger.info(f"🎯 Clarification R1: Generated {len(directions)} directions for: {question[:50]}...")
             

@@ -34,8 +34,10 @@ export const AdvancedResearchScreen: React.FC = () => {
     } = useAdvancedResearch();
 
     const [customInput, setCustomInput] = useState("");
+    const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
     const reportEndRef = useRef<HTMLDivElement>(null);
     const stepsEndRef = useRef<HTMLDivElement>(null);
+    const exportMenuRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (reportEndRef.current) {
@@ -48,6 +50,52 @@ export const AdvancedResearchScreen: React.FC = () => {
             stepsEndRef.current.scrollIntoView({ behavior: 'smooth' });
         }
     }, [steps]);
+
+    // Click-outside handler for export menu
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+                setIsExportMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const getSanitizedFilename = (title: string, ext: string) => {
+        return `${title.replace(/[^a-z0-9\u4e00-\u9fa5]/gi, '_').slice(0, 50)}.${ext}`;
+    };
+
+    const handleExportMarkdown = () => {
+        if (!reportContent) return;
+        const blob = new Blob([reportContent], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = getSanitizedFilename(query || 'advanced_research', 'md');
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        setIsExportMenuOpen(false);
+    };
+
+    const handleExportPDF = () => {
+        if (!reportContent) return;
+        import('html2pdf.js').then((html2pdf) => {
+            const element = document.getElementById('advanced-report-content');
+            const opt = {
+                margin: 10,
+                filename: getSanitizedFilename(query || 'advanced_research', 'pdf'),
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
+            };
+            // @ts-ignore
+            html2pdf.default().set(opt).from(element).save();
+            setIsExportMenuOpen(false);
+        }).catch(err => console.error('Failed to load html2pdf', err));
+    };
 
     const handleSearch = async (e?: React.FormEvent) => {
         e?.preventDefault();
@@ -368,9 +416,41 @@ export const AdvancedResearchScreen: React.FC = () => {
                                     <Icon name="auto_awesome" className="text-violet-500 text-sm" />
                                     {t('advancedResearchReport')}
                                 </h2>
-                                {sources.length > 0 && (
-                                    <span className="text-[10px] text-slate-400">{sources.length} {t('sources')}</span>
-                                )}
+                                <div className="flex items-center gap-3">
+                                    {sources.length > 0 && (
+                                        <span className="text-[10px] text-slate-400">{sources.length} {t('sources')}</span>
+                                    )}
+                                    {phase === 'done' && reportContent && (
+                                        <div className="relative" ref={exportMenuRef}>
+                                            <button
+                                                onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                                                className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-900 text-white rounded-md text-[11px] font-medium hover:bg-zinc-800 transition-colors shadow-sm"
+                                            >
+                                                <Icon name="download" className="text-xs" />
+                                                {t('export')}
+                                                <Icon name="expand_more" className="text-xs" />
+                                            </button>
+                                            {isExportMenuOpen && (
+                                                <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 py-0.5 z-50">
+                                                    <button
+                                                        onClick={handleExportMarkdown}
+                                                        className="w-full text-left px-4 py-2 text-xs text-zinc-700 hover:bg-zinc-50 flex items-center gap-2"
+                                                    >
+                                                        <Icon name="description" className="text-zinc-400 text-sm" />
+                                                        {t('exportAsMarkdown')}
+                                                    </button>
+                                                    <button
+                                                        onClick={handleExportPDF}
+                                                        className="w-full text-left px-4 py-2 text-xs text-zinc-700 hover:bg-zinc-50 flex items-center gap-2"
+                                                    >
+                                                        <Icon name="picture_as_pdf" className="text-zinc-400 text-sm" />
+                                                        {t('exportAsPDF')}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                             <div className="flex-1 overflow-y-auto p-12 lg:px-20 bg-white relative">
                                 {isLoading && !reportContent && (
@@ -378,7 +458,7 @@ export const AdvancedResearchScreen: React.FC = () => {
                                         <div className="loader border-t-violet-400 border-slate-200 size-4 border-2 rounded-full animate-spin" />
                                     </div>
                                 )}
-                                <div className="flex-1">
+                                <div className="flex-1" id="advanced-report-content">
                                     {reportContent ? (
                                         <MarkdownViewer content={reportContent} />
                                     ) : (

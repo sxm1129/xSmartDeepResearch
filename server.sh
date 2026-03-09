@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Configuration
-BACKEND_PORT=8000
-FRONTEND_PORT=3002
-PYTHON_CMD="/opt/miniconda3/envs/deepresearch_env/bin/python"
+BACKEND_PORT=8766
+FRONTEND_PORT=8765
+PYTHON_CMD="python"
 PROJECT_ROOT=$(pwd)
 
 # Colors
