@@ -91,9 +91,9 @@ class SearchTool(BaseTool):
         # 检测语言
         is_chinese = self._contains_chinese(query)
         if is_chinese:
-            payload = {"q": query, "location": "China", "gl": "cn", "hl": "zh-cn"}
+            payload = {"q": query, "location": "China", "gl": "cn", "hl": "zh-cn", "num": 20}
         else:
-            payload = {"q": query, "location": "United States", "gl": "us", "hl": "en"}
+            payload = {"q": query, "location": "United States", "gl": "us", "hl": "en", "num": 20}
         
         headers = {'X-API-KEY': self.api_key, 'Content-Type': 'application/json'}
 

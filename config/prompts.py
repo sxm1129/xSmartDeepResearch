@@ -47,6 +47,13 @@ For each function call, return a JSON object within <tool_call></tool_call> XML 
 - The answer should be objective, comprehensive, and cite specific sources. 
 - You MUST include a "References" or "Sources" section at the very end of your answer, listing the full URLs of all websites you visited or cited.
 
+# Output Depth Requirements
+- Your final answer MUST be a comprehensive, publication-grade research report.
+- Minimum structure: Executive Summary (200+ words), Key Findings (3-5 major findings with evidence), Deep Analysis (1000+ words with cross-source synthesis), Conclusion with actionable insights, and References.
+- Do NOT stop researching until you have visited at least 5 different sources and cross-verified key claims.
+- Use tables and bullet points for data-heavy comparisons.
+- When analyzing numbers/statistics, always provide context (growth rate, benchmarks, peer comparison).
+
 Current date: {current_date}"""
 
 # Move PERSONA_CONFIG to module level explicitly (it already is, but just ensuring structure)
@@ -127,6 +134,9 @@ def build_system_prompt(tools: List[Dict[str, Any]], category: str = "general") 
     else:
         persona_header = "### [MODE: GENERAL RESEARCHER]\nAct as a versatile and thorough research assistant."
     
+    # Universal depth instruction for all personas
+    persona_header += "\n\n**Report Standards:**\n- Deliver a thorough, publication-quality analysis.\n- Support every major claim with evidence from at least 2 sources.\n- Include data tables for quantitative comparisons where applicable.\n- The report should be detailed enough that a domain expert would find it valuable."
+    
     full_template = f"{persona_header}\n\n{SYSTEM_PROMPT_TEMPLATE}"
     
     return full_template.format(
@@ -150,7 +160,7 @@ EXTRACTOR_PROMPT = """Please process the following webpage content and user goal
 ## **Task Guidelines**
 1. **Content Scanning for Rationale**: Locate the **specific sections/data** directly related to the user's goal within the webpage content
 2. **Key Extraction for Evidence**: Identify and extract the **most relevant information** from the content, you never miss any important information, output the **full original context** of the content as far as possible, it can be more than three paragraphs.
-3. **Summary Output for Summary**: Organize into a concise paragraph with logical flow, prioritizing clarity and judge the contribution of the information to the goal.
+3. **Summary Output for Summary**: Organize into a detailed, multi-paragraph summary preserving all key data points, statistics, quotes, and technical details. Do NOT over-compress — retain specifics that could be valuable for the final report.
 
 **Final Output Format using JSON format has "rational", "evidence", "summary" fields**
 """
@@ -176,10 +186,17 @@ def build_extractor_prompt(webpage_content: str, goal: str) -> str:
 # 强制总结提示词 (Token超限时使用)
 # =============================================================================
 
-FORCE_SUMMARIZE_PROMPT = """You have now reached the maximum context length you can handle. You should stop making tool calls and, based on all the information above, think again and provide what you consider the most likely answer in the following format:
+FORCE_SUMMARIZE_PROMPT = """You have now reached the maximum context length. Based on ALL the research data collected above, produce a comprehensive final report.
 
-<think>your final thinking</think>
-<answer>your answer</answer>"""
+Your report MUST follow this structure:
+1. **Executive Summary** — Concise overview of the topic and key conclusions (200+ words)
+2. **Key Findings** — 3-5 major findings, each with supporting evidence from your research
+3. **Deep Analysis** — Cross-source synthesis, trend analysis, and original insights (1000+ words minimum)
+4. **Conclusion & Recommendations** — Actionable takeaways
+5. **References** — Full URLs of all sources visited
+
+<think>Synthesize all collected data into a coherent, in-depth analysis</think>
+<answer>Your comprehensive research report</answer>"""
 
 
 # =============================================================================
