@@ -7,10 +7,12 @@ import { SettingsScreen } from './screens/SettingsScreen';
 import { ResearchDetailScreen } from './screens/ResearchDetailScreen';
 import { SavedReportsScreen } from './screens/SavedReportsScreen';
 import { SetupWizard } from './screens/SetupWizard';
+import { AdvancedResearchScreen } from './screens/AdvancedResearchScreen';
 import { ErrorModal } from './components/ErrorModal';
 import { ResearchHistoryItem } from './services/api';
 import { Language, translations, TranslationKeys } from './utils/i18n';
 import { ResearchProvider } from './contexts/ResearchContext';
+import { AdvancedResearchProvider } from './contexts/AdvancedResearchContext';
 import { ToastProvider } from './contexts/ToastContext';
 
 // Language Context
@@ -66,6 +68,8 @@ const App: React.FC = () => {
         return <SettingsScreen onShowError={() => setIsErrorModalOpen(true)} />;
       case View.WIZARD:
         return <SetupWizard onComplete={() => setCurrentView(View.DASHBOARD)} />;
+      case View.ADVANCED_RESEARCH:
+        return <AdvancedResearchScreen />;
       default:
         // Fallback for screens not implemented in this demo
         return (
@@ -97,6 +101,7 @@ const App: React.FC = () => {
     <LanguageContext.Provider value={{ language, setLanguage, t }}>
       <ToastProvider>
         <ResearchProvider>
+          <AdvancedResearchProvider>
           <div className="flex h-screen w-full bg-background-light">
             <Sidebar
               currentView={currentView}
@@ -113,6 +118,7 @@ const App: React.FC = () => {
               <ErrorModal onClose={() => setIsErrorModalOpen(false)} />
             )}
           </div>
+          </AdvancedResearchProvider>
         </ResearchProvider>
       </ToastProvider>
     </LanguageContext.Provider>

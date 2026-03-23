@@ -110,6 +110,24 @@ export const translations = {
         deleteResearch: 'Delete Research',
         cancel: 'Cancel',
         deleteConfirmationMessage: 'Are you sure you want to delete this research task? This action cannot be undone and will remove all associated data.',
+
+        // Advanced Research
+        advancedResearch: 'Advanced Research',
+        advancedResearchDesc: 'Enter a topic and we\'ll help you clarify the exact research direction before diving deep.',
+        advancedResearchPlaceholder: 'What would you like to research deeply?',
+        analyze: 'Analyze',
+        analyzing: 'Analyzing...',
+        clarifyingIntent: 'Clarifying Research Intent',
+        round: 'Round',
+        yourQuestion: 'Your Question',
+        selectDirectionDesc: 'To provide the most relevant research, which specific angle would you like to explore?',
+        customDirection: 'Or describe your own direction',
+        customDirectionPlaceholder: 'Describe the specific angle you want to research...',
+        startResearch: 'Start Research',
+        newAdvancedResearch: 'New Research',
+        refinedQuery: 'Refined Query',
+        advancedResearchReport: 'Advanced Research Report',
+        researchInProgress: 'Research in progress...',
         confirmDelete: 'Delete',
     },
     zh: {
@@ -222,6 +240,24 @@ export const translations = {
         cancel: '取消',
         deleteConfirmationMessage: '您确定要删除此研究任务吗？此操作无法撤销，并将删除所有相关数据。',
         confirmDelete: '删除',
+
+        // Advanced Research
+        advancedResearch: '高级深度研究',
+        advancedResearchDesc: '输入研究主题，我们将帮助您明确具体研究方向后再进行深度分析。',
+        advancedResearchPlaceholder: '您想深入研究什么？',
+        analyze: '分析',
+        analyzing: '分析中...',
+        clarifyingIntent: '明确研究意图',
+        round: '轮次',
+        yourQuestion: '您的问题',
+        selectDirectionDesc: '为了提供最相关的研究，您希望从哪个具体角度进行探索？',
+        customDirection: '或描述您自己的研究方向',
+        customDirectionPlaceholder: '描述您想研究的具体角度...',
+        startResearch: '开始研究',
+        newAdvancedResearch: '新研究',
+        refinedQuery: '精炼查询',
+        advancedResearchReport: '高级研究报告',
+        researchInProgress: '研究进行中...',
     }
 };
 

@@ -100,7 +100,7 @@ PERSONA_CONFIG = {
         "instructions": "Provide practical, high-value advice. Compare specifications with real-world user experience. Focus on 'the best in class' for the specific persona budget."
     }
 }
-print("✅ PERSONA_CONFIG loaded.")
+# PERSONA_CONFIG loaded successfully
 
 
 def build_system_prompt(tools: List[Dict[str, Any]], category: str = "general") -> str:
