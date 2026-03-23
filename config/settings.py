@@ -55,6 +55,13 @@ class Settings(BaseSettings):
     api_port: int = Field(default=8000, env="API_PORT")
     redis_url: str = Field(default="redis://localhost:6379", env="REDIS_URL")
     
+    # AUDIT S1: CORS origins (comma-separated, "*" for dev)
+    cors_origins: str = Field(default="*", env="CORS_ORIGINS")
+    # AUDIT S2: Admin API key for settings mutation (empty = no auth required)
+    admin_api_key: str = Field(default="", env="ADMIN_API_KEY")
+    # AUDIT S7: Toggle Swagger/ReDoc docs in production
+    enable_docs: bool = Field(default=True, env="ENABLE_DOCS")
+    
     # Cache Expiry (seconds)
     cache_expiry_search: int = Field(default=86400, env="CACHE_EXPIRY_SEARCH")  # 1 day
     cache_expiry_visit: int = Field(default=604800, env="CACHE_EXPIRY_VISIT")   # 7 days

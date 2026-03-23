@@ -1,6 +1,6 @@
 """Settings API 路由"""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header, Depends
 from src.utils.logger import logger
 import asyncio
 import httpx
@@ -17,6 +17,16 @@ _models_cache = {
     "expiry": 0
 }
 CACHE_TTL = 3600  # 1 hour
+
+
+# AUDIT S2 fix: admin API key auth for settings mutation
+async def verify_admin_key(x_admin_key: Optional[str] = Header(None)):
+    """Verify admin API key for protected endpoints.
+    When ADMIN_API_KEY env var is empty, auth is disabled (dev mode).
+    """
+    if settings.admin_api_key and x_admin_key != settings.admin_api_key:
+        raise HTTPException(status_code=403, detail="Invalid or missing X-Admin-Key")
+
 
 class SettingsUpdate(BaseModel):
     model_name: Optional[str] = None
@@ -59,7 +69,7 @@ async def get_settings():
         jina_api_key_masked=mask_key(settings.jina_api_key)
     )
 
-@router.post("", response_model=SettingsResponse)
+@router.post("", response_model=SettingsResponse, dependencies=[Depends(verify_admin_key)])
 async def update_settings(update: SettingsUpdate):
     """更新系统设置 (运行时更新 + 持久化)"""
     from src.api.dependencies import get_session_manager

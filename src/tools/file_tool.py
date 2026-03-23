@@ -142,12 +142,19 @@ class FileParserTool(BaseTool):
             完整路径
         """
         if os.path.isabs(file_path):
-            return file_path
+            resolved = os.path.realpath(file_path)
+        elif self.file_root_path:
+            resolved = os.path.realpath(os.path.join(self.file_root_path, file_path))
+        else:
+            resolved = os.path.realpath(file_path)
         
+        # AUDIT T2 fix: prevent path traversal escaping file_root_path
         if self.file_root_path:
-            return os.path.join(self.file_root_path, file_path)
+            root = os.path.realpath(self.file_root_path)
+            if not resolved.startswith(root + os.sep) and resolved != root:
+                raise ValueError(f"Path traversal blocked: {file_path} escapes {self.file_root_path}")
         
-        return file_path
+        return resolved
     
     def _parse_pdf(self, file_path: str) -> str:
         """解析 PDF 文件 (增强版：包含表格提取和布局还原)"""

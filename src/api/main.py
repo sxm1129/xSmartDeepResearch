@@ -98,14 +98,19 @@ app = FastAPI(
     """,
     version=APP_VERSION,
     lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc"
+    # AUDIT S7 fix: conditionally disable docs in production via ENABLE_DOCS env var
+    docs_url="/docs" if settings.enable_docs else None,
+    redoc_url="/redoc" if settings.enable_docs else None
 )
 
-# CORS 配置
+# AUDIT S1 fix: CORS origins from env var instead of hardcoded wildcard
+_cors_origins = (
+    ["*"] if settings.cors_origins.strip() == "*"
+    else [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 生产环境应限制来源
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -25,10 +25,42 @@ class SessionManager:
         self.password = os.getenv("DB_PASSWORD", "")
         self.db_name = os.getenv("DB_NAME", "xsmartdeepresearch")
         
+        # AUDIT S4 fix: connection pool (lazy-init after _init_db creates the database)
+        self._pool = None
         self._init_db()
+        self._init_pool()
+    
+    def _init_pool(self):
+        """Initialize connection pool for the application database"""
+        try:
+            from dbutils.pooled_db import PooledDB
+            self._pool = PooledDB(
+                creator=pymysql,
+                mincached=2,
+                maxcached=5,
+                maxconnections=10,
+                blocking=True,
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.db_name,
+                cursorclass=pymysql.cursors.DictCursor,
+                charset='utf8mb4'
+            )
+            logger.info("Database connection pool initialized")
+        except ImportError:
+            logger.warning("DBUtils not installed, using per-call connections. Install with: pip install DBUtils")
+            self._pool = None
+        except Exception as e:
+            logger.warning(f"Failed to initialize connection pool: {e}. Using per-call connections.")
+            self._pool = None
         
     def _get_connection(self, db_name: str = None):
         """获取数据库连接"""
+        # AUDIT S4 fix: use pooled connection when available and targeting the default db
+        if self._pool and (db_name is None or db_name == self.db_name):
+            return self._pool.connection()
         return pymysql.connect(
             host=self.host,
             port=self.port,

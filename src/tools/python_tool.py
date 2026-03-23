@@ -31,6 +31,29 @@ def _run_with_limits_worker(code, queue, timeout):
     sys.stdout = StringIO()
     sys.stderr = StringIO()
     
+    # AUDIT T1 fix: block dangerous imports in sandboxed local execution
+    _BLOCKED_IMPORTS = [
+        'subprocess', 'shutil', 'ctypes', 'socket',
+        'multiprocessing', 'signal', 'webbrowser', 'http.server',
+    ]
+    _BLOCKED_CALLS = [
+        'os.system', 'os.popen', 'os.exec', 'os.spawn',
+        'os.remove', 'os.unlink', 'os.rmdir', 'os.rename',
+        'eval(', 'exec(',
+    ]
+    
+    blocked = []
+    for mod in _BLOCKED_IMPORTS:
+        if f'import {mod}' in code or f'from {mod}' in code:
+            blocked.append(mod)
+    for call in _BLOCKED_CALLS:
+        if call in code:
+            blocked.append(call)
+    
+    if blocked:
+        queue.put(("", "", f"Blocked: {', '.join(blocked)} — not allowed in sandboxed execution"))
+        return
+
     try:
         exec_globals = {"__builtins__": __builtins__}
         exec(code, exec_globals)
