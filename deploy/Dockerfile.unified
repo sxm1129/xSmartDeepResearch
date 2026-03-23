@@ -35,6 +35,8 @@ LABEL version="${APP_VERSION}"
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+ENV PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
 
@@ -64,6 +66,7 @@ RUN apt-get update && \
 RUN pip install --no-cache-dir --default-timeout=1000 \
     -i https://mirrors.aliyun.com/pypi/simple/ \
     --trusted-host mirrors.aliyun.com \
+    --retries=10 \
     torch==2.10.0+cpu --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Step 2: Install remaining dependencies (will reuse the CPU torch already installed)
@@ -71,6 +74,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --default-timeout=1000 \
     -i https://mirrors.aliyun.com/pypi/simple/ \
     --trusted-host mirrors.aliyun.com \
+    --retries=10 \
     -r requirements.txt
 
 # Step 3: Pre-download sentence-transformers model from ModelScope (China mirror)
