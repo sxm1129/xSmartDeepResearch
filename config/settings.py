@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     api_key: str = Field(default="", env="API_KEY") # Legacy fallback
     openrouter_key: str = Field(default="", env="OPENROUTER_KEY") # Primary LLM Key
     api_base: str = Field(default="https://openrouter.ai/api/v1", env="API_BASE")
+    kimi_api_key: str = Field(default="", env="KIMI_API_KEY")
+    llm_base_url: str = Field(default="", env="LLM_BASE_URL")
     dashscope_api_key: str = Field(default="", env="DASHSCOPE_API_KEY")
     
     # ==========================================================================
@@ -25,7 +27,9 @@ class Settings(BaseSettings):
     # ==========================================================================
     model_path: str = Field(default="", env="MODEL_PATH")
     model_name: str = Field(default="gpt-4o", env="MODEL_NAME")
+    llm_model: str = Field(default="", env="LLM_MODEL")
     summary_model_name: str = Field(default="gpt-4o-mini", env="SUMMARY_MODEL_NAME")
+    classifier_model_name: str = Field(default="", env="CLASSIFIER_MODEL_NAME")
     
     # ==========================================================================
     # Agent Configuration
@@ -70,6 +74,21 @@ class Settings(BaseSettings):
         if not self.sandbox_fusion_endpoints:
             return []
         return [ep.strip() for ep in self.sandbox_fusion_endpoints.split(",") if ep.strip()]
+
+    @property
+    def effective_api_key(self) -> str:
+        """LLM API Key: Kimi 优先, OpenRouter 兜底"""
+        return self.kimi_api_key or self.openrouter_key or self.api_key
+
+    @property
+    def effective_api_base(self) -> str:
+        """LLM Base URL: LLM_BASE_URL 优先, API_BASE 兜底"""
+        return self.llm_base_url or self.api_base
+
+    @property
+    def effective_model_name(self) -> str:
+        """主模型: LLM_MODEL 优先, MODEL_NAME 兜底"""
+        return self.llm_model or self.model_name
     
     class Config:
         env_file = ".env"

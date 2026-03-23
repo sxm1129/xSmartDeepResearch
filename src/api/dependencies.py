@@ -18,8 +18,8 @@ _agent_instance = None
 def get_openai_client() -> AsyncOpenAI:
     """获取 OpenAI 客户端单例"""
     return AsyncOpenAI(
-        api_key=settings.openrouter_key or settings.api_key,
-        base_url=settings.api_base,
+        api_key=settings.effective_api_key,
+        base_url=settings.effective_api_base,
         timeout=600.0,
         default_headers={
             "HTTP-Referer": "https://github.com/sxm1129/DeepResearch",
@@ -32,8 +32,8 @@ def get_openai_client() -> AsyncOpenAI:
 def get_summary_client() -> AsyncOpenAI:
     """获取摘要用 OpenAI 客户端"""
     return AsyncOpenAI(
-        api_key=settings.openrouter_key or settings.api_key,
-        base_url=settings.api_base,
+        api_key=settings.effective_api_key,
+        base_url=settings.effective_api_base,
         timeout=60.0
     )
 
@@ -67,7 +67,7 @@ def get_agent() -> xSmartReactAgent:
         
         _agent_instance = xSmartReactAgent(
             client=client,
-            model=settings.model_name,
+            model=settings.effective_model_name,
             tools=tools
         )
     

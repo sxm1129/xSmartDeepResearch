@@ -70,16 +70,16 @@ class xSmartReactAgent:
         top_p: float = None,
         presence_penalty: float = None,
         timeout_minutes: int = 150,
-        classifier_model: str = "gpt-4o-mini"
+        classifier_model: str = None
     ):
         """初始化 ReAct Agent"""
         # 客户端配置
         self.client = client or AsyncOpenAI(
-            api_key=settings.openrouter_key or settings.api_key,
-            base_url=settings.api_base,
+            api_key=settings.effective_api_key,
+            base_url=settings.effective_api_base,
             timeout=600.0
         )
-        self.model = model or settings.model_name
+        self.model = model or settings.effective_model_name
         
         # Agent 配置
         self.max_iterations = max_iterations or settings.max_llm_call_per_run
@@ -89,8 +89,9 @@ class xSmartReactAgent:
         self.presence_penalty = presence_penalty or settings.presence_penalty
         self.timeout_minutes = timeout_minutes
         
-        # 意图分类器
-        self.classifier = IntentClassifier(self.client, model=classifier_model)
+        # 意图分类器：默认跟随可用主模型，避免区域不可用模型导致 403
+        classifier_model_name = classifier_model or settings.classifier_model_name or self.model
+        self.classifier = IntentClassifier(self.client, model=classifier_model_name)
         
         # 会话管理器
         self.session_manager = SessionManager()

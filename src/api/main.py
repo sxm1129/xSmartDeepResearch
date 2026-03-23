@@ -137,7 +137,7 @@ async def simple_health_check():
     return HealthCheck(
         status="healthy",
         version=APP_VERSION,
-        model=settings.model_name,
+        model=settings.effective_model_name,
         tools_available=get_available_tools(),
         timestamp=datetime.now()
     )

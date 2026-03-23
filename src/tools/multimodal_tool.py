@@ -36,8 +36,8 @@ class ImageAnalysisTool(BaseTool):
     def __init__(self, client: Optional[OpenAI] = None, model: str = None, cfg: Optional[Dict] = None):
         super().__init__(cfg)
         self.client = client or OpenAI(
-            api_key=settings.openrouter_key or settings.api_key,
-            base_url=settings.api_base
+            api_key=settings.effective_api_key,
+            base_url=settings.effective_api_base
         )
         self.model = model or settings.multimodal_model_name
     

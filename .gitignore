@@ -48,6 +48,8 @@ data/
 *.jsonl
 *.json
 !eval/eval_data/*.jsonl
+!web/package.json
+!web/package-lock.json
 
 # 模型
 models/

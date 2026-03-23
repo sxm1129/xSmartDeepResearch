@@ -19,7 +19,7 @@ Your task is to classify the user's research query into one of the following cat
 - **lifestyle_con**: Consumer goods reviews, travel planning, hobbies, daily life optimization.
 
 Output ONLY a JSON object in the following format:
-{"category": "coding_tech" | "finance_market" | "strategy_biz" | "medical_health" | "legal_policy" | "academic_sci" | "media_creative" | "lifestyle_con", "reason": "brief reason"}
+{{"category": "coding_tech" | "finance_market" | "strategy_biz" | "medical_health" | "legal_policy" | "academic_sci" | "media_creative" | "lifestyle_con", "reason": "brief reason"}}
 
 Query: {query}"""
 
