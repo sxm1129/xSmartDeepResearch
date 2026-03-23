@@ -425,15 +425,10 @@ async def cancel_research(task_id: str, force: bool = False):
     if not task:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
     
-    # Check if we should just delete it record
+    # AUDIT S12 fix: simplify deletion logic to a single check
     if force or task["status"] in [ResearchStatus.COMPLETED, ResearchStatus.FAILED, ResearchStatus.TIMEOUT]:
          await asyncio.to_thread(session_manager.delete_research_task, task_id)
          return {"message": f"Task {task_id} deleted"}
-
-    if task["status"] not in [ResearchStatus.PENDING, ResearchStatus.RUNNING]:
-        # Should have been handled above, but just in case
-        await asyncio.to_thread(session_manager.delete_research_task, task_id)
-        return {"message": f"Task {task_id} deleted"}
     
     # If running and not forced, cancel it
     await asyncio.to_thread(session_manager.update_research_task, task_id, {

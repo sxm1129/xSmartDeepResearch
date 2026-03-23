@@ -256,7 +256,9 @@ class VisitTool(BaseTool):
                         if is_partial:
                             return f"Evidence:\n{parsed.get('evidence')}\nSummary:\n{parsed.get('summary')}"
                         return self._format_summary(url, goal, parsed)
-                    except: pass
+                    except (ValueError, json.JSONDecodeError):  # AUDIT S14 fix
+                        # If parsing the extracted JSON fails, proceed to the next step (return error or raw text)
+                        pass
                 
                 # 如果是最终聚合阶段解析失败，则返回原始文本
                 if is_reduction:

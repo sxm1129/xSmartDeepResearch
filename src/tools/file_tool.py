@@ -182,7 +182,7 @@ class FileParserTool(BaseTool):
                     # 注意：layout=True 需要 pdfplumber 较新版本
                     try:
                         text = page.extract_text(layout=True)
-                    except:
+                    except Exception:  # AUDIT S14 fix: explicit exception
                         text = page.extract_text()
                         
                     if text:

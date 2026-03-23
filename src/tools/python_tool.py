@@ -281,5 +281,5 @@ print(f"The result is: {np.mean([1,2,3])}")
                 result.append(f"stderr:\n{stderr_output}")
             
             return '\n'.join(result) if result else 'Finished execution.'
-        except:
+        except Exception:  # AUDIT S14 fix
             return "[Python Interpreter Error]: Failed to get execution results."
