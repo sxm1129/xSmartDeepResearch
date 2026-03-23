@@ -56,14 +56,19 @@ async def lifespan(app: FastAPI):
                     if isinstance(current_val, int):
                         try:
                             setattr(settings, key, int(value))
-                        except: pass
+                        except (ValueError, TypeError):  # AUDIT S9 fix
+                            pass
                     elif isinstance(current_val, float):
                         try:
                             setattr(settings, key, float(value))
-                        except: pass
+                        except (ValueError, TypeError):  # AUDIT S9 fix
+                            pass
                     elif isinstance(current_val, bool):
                         setattr(settings, key, value.lower() == 'true')
                     else:
+                        # AUDIT T3 fix: don't overwrite api keys with empty strings from DB if .env has them
+                        if "api_key" in key and not value:
+                            continue
                         setattr(settings, key, value)
             logger.info("Settings loaded from DB")
     except Exception as e:

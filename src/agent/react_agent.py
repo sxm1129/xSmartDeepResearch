@@ -197,8 +197,9 @@ class xSmartReactAgent:
         # 记录用户问题
         if session_id:
             await asyncio.to_thread(self.session_manager.add_message, session_id, "user", question)
-            # PERSIST: Delayed status messages
-            await asyncio.to_thread(self.session_manager.add_message, session_id, "status", status_msg)
+            # AUDIT B7 fix: guard session_id before DB write
+            if session_id:
+                await asyncio.to_thread(self.session_manager.add_message, session_id, "status", status_msg)
 
         # 构建初始消息
         tool_definitions = [tool.get_function_definition() for tool in self.tools.values()]
@@ -527,7 +528,8 @@ class xSmartReactAgent:
                             "arguments": tool_call_json.get("arguments", {}),
                             "raw": potential_content
                         })
-                except: pass
+                except Exception:  # AUDIT S8 fix
+                    pass
 
         # 检查 PythonInterpreter 的 code 快捷方式
         # 其实 xSmart 的 PythonInterpreter 并不总是用 <tool_call>，有时用 <code>

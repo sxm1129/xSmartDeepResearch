@@ -104,6 +104,13 @@ async def update_settings(update: SettingsUpdate):
     if update.jina_api_key:
         settings.jina_api_key = update.jina_api_key
         await asyncio.to_thread(session_manager.save_setting, "jina_api_key", update.jina_api_key)
+
+    # AUDIT S11 fix: Clear client caches & reset agent singleton so new keys/models take effect immediately
+    from src.api.dependencies import get_openai_client, get_summary_client
+    import src.api.dependencies as deps
+    get_openai_client.cache_clear()
+    get_summary_client.cache_clear()
+    deps._agent_instance = None
         
     return await get_settings()
 
