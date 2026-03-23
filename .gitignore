@@ -73,3 +73,6 @@ results/
 tmp/
 temp/
 *.tmp
+
+# 进程 PID（由 server.sh 等运行时写入，勿入库）
+*.pid
