@@ -12,6 +12,12 @@ load_dotenv()
 class SessionManager:
     """会话管理器 - 基于 MySQL 实现远程持久化"""
     
+    # AUDIT B1 fix: whitelist of allowed columns for update_research_task
+    _RESEARCH_TASK_COLUMNS = frozenset({
+        "status", "answer", "iterations", "execution_time",
+        "termination_reason", "is_bookmarked"
+    })
+    
     def __init__(self):
         self.host = os.getenv("DB_HOST", "localhost")
         self.port = int(os.getenv("DB_PORT", 3306))
@@ -39,7 +45,9 @@ class SessionManager:
             conn = self._get_connection()
             cursor = conn.cursor()
             
-            cursor.execute(f"CREATE DATABASE IF NOT EXISTS {self.db_name} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+            # AUDIT B2 fix: use backtick-quoted identifier to prevent SQL injection via db_name
+            safe_db_name = self.db_name.replace('`', '``')
+            cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{safe_db_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
             conn.commit()
             conn.close()
             
@@ -305,10 +313,14 @@ class SessionManager:
             conn = self._get_connection(self.db_name)
             cursor = conn.cursor()
             
+            # AUDIT B1 fix: only allow whitelisted column names to prevent SQL injection
             fields = []
             values = []
             for k, v in update_data.items():
-                fields.append(f"{k} = %s")
+                if k not in self._RESEARCH_TASK_COLUMNS:
+                    logger.warning(f"Ignoring unknown column in update_research_task: {k}")
+                    continue
+                fields.append(f"`{k}` = %s")
                 values.append(v)
             
             if not fields:

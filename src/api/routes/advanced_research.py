@@ -134,7 +134,7 @@ async def stream_advanced_research(
         from config import settings
         effective_max_iterations = research_request.max_iterations or settings.max_llm_call_per_run
         
-        task_id = str(uuid.uuid4())[:8]
+        task_id = str(uuid.uuid4())[:10]
         queue = asyncio.Queue()
         done_event = asyncio.Event()
         

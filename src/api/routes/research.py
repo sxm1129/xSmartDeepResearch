@@ -49,7 +49,7 @@ async def stream_research(
         from config import settings
         effective_max_iterations = research_request.max_iterations or settings.max_llm_call_per_run
         
-        task_id = str(uuid.uuid4())[:8]
+        task_id = str(uuid.uuid4())[:10]
         queue = asyncio.Queue()
         done_event = asyncio.Event()
         
@@ -145,7 +145,7 @@ async def create_research(
     
     同步执行研究任务并返回结果。对于长时间任务，考虑使用 /research/async 端点。
     """
-    task_id = str(uuid.uuid4())[:8]
+    task_id = str(uuid.uuid4())[:10]  # AUDIT S5 fix: consistent length with batch
     
     try:
         agent = get_agent()
@@ -180,7 +180,7 @@ async def create_async_research(
     
     立即返回任务ID，后台执行研究。使用 GET /research/{task_id} 查询结果。
     """
-    task_id = str(uuid.uuid4())[:8]
+    task_id = str(uuid.uuid4())[:10]
     
     # 初始化任务状态 (MySQL)
     session_manager = get_session_manager()
@@ -377,7 +377,7 @@ async def create_batch_research(
     
     一次性提交多个问题，并行启动后台任务。返回批次ID和所有子任务ID。
     """
-    batch_id = str(uuid.uuid4())[:8]
+    batch_id = str(uuid.uuid4())[:10]
     task_ids = []
     
     for question in request.questions:

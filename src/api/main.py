@@ -27,7 +27,7 @@ def _read_version() -> str:
         version_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'VERSION')
         with open(version_file) as f:
             return f.read().strip()
-    except:
+    except Exception:
         return "0.0.0"
 
 APP_VERSION = _read_version()
@@ -116,11 +116,14 @@ app.add_middleware(
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """全局异常处理"""
+    # AUDIT B5 fix: hide exception details in production to prevent info leaking
+    logger.error(f"Unhandled exception on {request.url}: {exc}")
+    detail = str(exc) if settings.log_level == "DEBUG" else "An internal error occurred"
     return JSONResponse(
         status_code=500,
         content={
             "error": "Internal Server Error",
-            "detail": str(exc),
+            "detail": detail,
             "path": str(request.url)
         }
     )

@@ -68,7 +68,8 @@ def get_agent() -> xSmartReactAgent:
         _agent_instance = xSmartReactAgent(
             client=client,
             model=settings.effective_model_name,
-            tools=tools
+            tools=tools,
+            session_manager=get_session_manager()  # AUDIT B4 fix: inject singleton
         )
     
     return _agent_instance

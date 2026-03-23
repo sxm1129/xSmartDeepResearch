@@ -136,7 +136,7 @@ class HealthCheckDetail(BaseModel):
 class HealthCheck(BaseModel):
     """简单健康检查响应 (保留兼容性)"""
     status: str = "healthy"
-    version: str = "1.0.11"
+    version: str  # AUDIT S6 fix: version set at runtime, no stale default
     model: str
     tools_available: List[str]
     timestamp: datetime = Field(default_factory=datetime.now)

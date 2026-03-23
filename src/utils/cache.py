@@ -3,7 +3,6 @@
 import json
 import hashlib
 from typing import Any, Optional, Union
-import pickle
 
 import redis
 from config import settings
@@ -50,7 +49,8 @@ class CacheManager:
             key = self._generate_key(prefix, key_data)
             data = self.redis_client.get(key)
             if data:
-                return pickle.loads(data)
+                # AUDIT B6 fix: use json instead of pickle to prevent RCE
+                return json.loads(data)
         except Exception as e:
             logger.error(f"Cache get error: {e}")
         
@@ -63,7 +63,8 @@ class CacheManager:
         
         try:
             key = self._generate_key(prefix, key_data)
-            data = pickle.dumps(value)
+            # AUDIT B6 fix: use json instead of pickle to prevent RCE
+            data = json.dumps(value, ensure_ascii=False)
             return self.redis_client.set(key, data, ex=expire_seconds)
         except Exception as e:
             logger.error(f"Cache set error: {e}")
