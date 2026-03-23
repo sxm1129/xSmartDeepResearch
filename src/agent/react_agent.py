@@ -457,20 +457,47 @@ class xSmartReactAgent:
         
         for match in matches:
             tool_call_str = match.group(1).strip()
-            # 清理常见幻觉
+            # 清理常见幻觉和格式噪音
             tool_call_str = tool_call_str.replace("</arg_value>", "").replace("<arg_value>", "")
             tool_call_str = tool_call_str.replace("</tool_code>", "").replace("<tool_code>", "")
+            # Strip markdown code fences (```json ... ```)
+            tool_call_str = re.sub(r'^```(?:json)?\s*', '', tool_call_str)
+            tool_call_str = re.sub(r'\s*```$', '', tool_call_str)
+            tool_call_str = tool_call_str.strip()
             
+            tool_call_json = None
+            # Tier 1: standard json (fastest)
             try:
-                import json5
+                import json as _json
+                tool_call_json = _json.loads(tool_call_str)
+            except Exception:
+                pass
+            
+            # Tier 2: json5 (more lenient)
+            if tool_call_json is None:
                 try:
+                    import json5
                     tool_call_json = json5.loads(tool_call_str)
-                except:
-                    # 简单修复尝试
-                    fixed_str = tool_call_str.strip()
-                    if not fixed_str.endswith('}'): fixed_str += '}'
-                    tool_call_json = json5.loads(fixed_str)
-                
+                except Exception:
+                    pass
+            
+            # Tier 3: try to extract the first valid JSON object via brace matching
+            if tool_call_json is None:
+                try:
+                    import json as _json
+                    # Find first { and match to its closing }
+                    start = tool_call_str.index('{')
+                    depth = 0
+                    for i, c in enumerate(tool_call_str[start:], start):
+                        if c == '{': depth += 1
+                        elif c == '}': depth -= 1
+                        if depth == 0:
+                            tool_call_json = _json.loads(tool_call_str[start:i+1])
+                            break
+                except Exception:
+                    pass
+            
+            if tool_call_json:
                 tool_name = tool_call_json.get("name")
                 tool_args = tool_call_json.get("arguments", tool_call_json.get("parameters", {}))
                 
@@ -480,8 +507,8 @@ class xSmartReactAgent:
                         "arguments": tool_args,
                         "raw": tool_call_str
                     })
-            except Exception as e:
-                logger.error(f"Failed to parse tool call: {tool_call_str[:50]}... Error: {e}")
+            else:
+                logger.error(f"Failed to parse tool call: {tool_call_str[:100]}...")
                 
         # 特殊处理：如果没找到闭合的 tool_call，尝试找未闭合的 (通常是流式输出中断或错误截断)
         if not tool_calls and "<tool_call>" in content:
