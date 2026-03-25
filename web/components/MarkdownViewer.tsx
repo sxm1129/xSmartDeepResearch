@@ -12,6 +12,10 @@ interface MarkdownViewerProps {
 export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({ content, className = '' }) => {
     const [copied, setCopied] = React.useState<string | null>(null);
 
+    // Stripe out top-level markdown block wrappers that LLMs sometimes generate
+    const cleanContent = content.trim().replace(/^```(?:markdown|md)?\n([\s\S]*?)(\n```)?$/, '$1');
+
+
     const handleCopy = (code: string) => {
         navigator.clipboard.writeText(code);
         setCopied(code);
@@ -27,8 +31,8 @@ export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({ content, classNa
       prose-p:text-slate-600 prose-p:leading-relaxed prose-p:mb-5
       prose-strong:text-slate-900 prose-strong:font-bold
       prose-ul:my-6 prose-li:my-2 prose-li:text-slate-600
-      prose-blockquote:border-l-4 prose-blockquote:border-primary/30 prose-blockquote:bg-primary/5 prose-blockquote:py-2 prose-blockquote:px-5 prose-blockquote:rounded-r-lg prose-blockquote:italic prose-blockquote:text-slate-700
-      prose-code:text-primary prose-code:bg-primary/5 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none
+      prose-blockquote:border-l-4 prose-blockquote:border-slate-300 prose-blockquote:bg-slate-50 prose-blockquote:py-2 prose-blockquote:px-5 prose-blockquote:rounded-r-lg prose-blockquote:italic prose-blockquote:text-slate-700
+      prose-code:text-slate-800 prose-code:bg-slate-100 prose-code:font-semibold prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none
       prose-pre:bg-slate-900 prose-pre:rounded-xl prose-pre:p-0 prose-pre:shadow-xl prose-pre:my-8
       prose-table:w-full prose-table:border-collapse prose-table:my-8
       prose-th:bg-slate-50 prose-th:px-4 prose-th:py-3 prose-th:text-left prose-th:text-slate-900 prose-th:font-bold prose-th:border prose-th:border-slate-200
@@ -57,7 +61,7 @@ export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({ content, classNa
                     h2: ({ node, ...props }) => <h2 {...props} id={props.children?.toString().toLowerCase().replace(/\s+/g, '-')} />,
                 }}
             >
-                {content}
+                {cleanContent}
             </ReactMarkdown>
 
             {/* Add highlight.js theme via external stylesheet if needed, 

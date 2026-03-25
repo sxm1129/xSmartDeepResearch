@@ -451,6 +451,36 @@ class xSmartReactAgent:
         return bool(re.search(r'<tool_call>.*?</tool_call>', content, re.DOTALL)) or \
                bool(re.search(r'<tool_call>.*', content, re.DOTALL)) # 容错：允许未闭合标签
     
+    def _parse_json_robustly(self, text: str) -> Optional[Dict[str, Any]]:
+        """A robust JSON parser that handles trailing garbage and trailing commas."""
+        import json as _json
+        try:
+            return _json.loads(text)
+        except Exception:
+            pass
+            
+        try:
+            import json5
+            return json5.loads(text)
+        except Exception:
+            pass
+            
+        try:
+            start = text.index('{')
+            depth = 0
+            for i, c in enumerate(text[start:], start):
+                if c == '{': depth += 1
+                elif c == '}': depth -= 1
+                if depth == 0:
+                    try:
+                        return _json.loads(text[start:i+1])
+                    except _json.JSONDecodeError:
+                        import json5
+                        return json5.loads(text[start:i+1])
+        except Exception:
+            pass
+        return None
+
     def _extract_tool_calls(self, content: str) -> List[Dict[str, Any]]:
         """从响应中提取所有工具调用"""
         tool_calls = []
@@ -471,37 +501,7 @@ class xSmartReactAgent:
             tool_call_str = re.sub(r'\s*```$', '', tool_call_str)
             tool_call_str = tool_call_str.strip()
             
-            tool_call_json = None
-            # Tier 1: standard json (fastest)
-            try:
-                import json as _json
-                tool_call_json = _json.loads(tool_call_str)
-            except Exception:
-                pass
-            
-            # Tier 2: json5 (more lenient)
-            if tool_call_json is None:
-                try:
-                    import json5
-                    tool_call_json = json5.loads(tool_call_str)
-                except Exception:
-                    pass
-            
-            # Tier 3: try to extract the first valid JSON object via brace matching
-            if tool_call_json is None:
-                try:
-                    import json as _json
-                    # Find first { and match to its closing }
-                    start = tool_call_str.index('{')
-                    depth = 0
-                    for i, c in enumerate(tool_call_str[start:], start):
-                        if c == '{': depth += 1
-                        elif c == '}': depth -= 1
-                        if depth == 0:
-                            tool_call_json = _json.loads(tool_call_str[start:i+1])
-                            break
-                except Exception:
-                    pass
+            tool_call_json = self._parse_json_robustly(tool_call_str)
             
             if tool_call_json:
                 tool_name = tool_call_json.get("name")
@@ -522,19 +522,19 @@ class xSmartReactAgent:
             last_start = content.rfind("<tool_call>")
             potential_content = content[last_start + 11:].strip()
             if potential_content:
-                try:
-                    import json5
-                    # 尝试补全并解析
-                    if not potential_content.endswith('}'): potential_content += '}'
-                    tool_call_json = json5.loads(potential_content)
-                    if tool_call_json.get("name"):
-                        tool_calls.append({
-                            "name": tool_call_json.get("name"),
-                            "arguments": tool_call_json.get("arguments", {}),
-                            "raw": potential_content
-                        })
-                except Exception:  # AUDIT S8 fix
-                    pass
+                # 尝试补齐括号以防由截断引起
+                open_braces = potential_content.count('{')
+                close_braces = potential_content.count('}')
+                if open_braces > close_braces:
+                    potential_content += '}' * (open_braces - close_braces)
+                    
+                tool_call_json = self._parse_json_robustly(potential_content)
+                if tool_call_json and tool_call_json.get("name"):
+                    tool_calls.append({
+                        "name": tool_call_json.get("name"),
+                        "arguments": tool_call_json.get("arguments", {}),
+                        "raw": potential_content
+                    })
 
         # 检查 PythonInterpreter 的 code 快捷方式
         # 其实 xSmart 的 PythonInterpreter 并不总是用 <tool_call>，有时用 <code>

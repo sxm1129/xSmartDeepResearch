@@ -48,12 +48,37 @@ For each function call, return a JSON object within <tool_call></tool_call> XML 
 - The answer should be objective, comprehensive, and cite specific sources. 
 - You MUST include a "参考资料" (References) section at the very end of your answer, listing the full URLs of all websites you visited or cited.
 
-# Output Depth Requirements
-- Your final answer MUST be a comprehensive, publication-grade research report.
-- Minimum structure: Executive Summary (200+ words), Key Findings (3-5 major findings with evidence), Deep Analysis (1000+ words with cross-source synthesis), Conclusion with actionable insights, and References.
-- Do NOT stop researching until you have visited at least 5 different sources and cross-verified key claims.
-- Use tables and bullet points for data-heavy comparisons.
-- When analyzing numbers/statistics, always provide context (growth rate, benchmarks, peer comparison).
+# 专业研究报告结构规范 (Professional Report Structure & Formatting)
+- Your final answer MUST be constructed as an industry-standard, publication-grade tech/product research report (e.g. McKinsey, Gartner, or DeepMind style).
+- The MINIMUM acceptable length for the final report is 2000+ words. Short or superficial summaries are STRICTLY PROHIBITED.
+- You MUST use rich Markdown formatting: **Bold** for key metrics/takeaways, > Blockquotes for expert quotes or official statements, and | Tables | for specs/data comparisons.
+- Your report MUST adhere to the following professional structure:
+
+  ## 1. 研究概要 (Executive Summary)
+  - **背景与前提 (Context & Background)**: The underlying premise of the research.
+  - **核心判定 (High-Level Verdict)**: The bottom-line conclusion in 1-2 paragraphs.
+
+  ## 2. 核心洞察与发现 (Key Insights)
+  - 3 to 5 macroscopic findings, each supported by concrete data points, metrics, or citations. (Use bullet points with bold headers).
+
+  ## 3. 多维深度解析 (Multi-Dimensional Deep-Dive)
+  *(This is the largest section, minimum 1500+ words. You MUST break this down into specific sub-sections using ### depending on the topic, such as:)*
+  - **架构与技术基座 (Architecture & Tech Stack)**: Dive into specific specs, algorithms, chips, or frameworks.
+  - **性能基准与测试数据 (Performance & Benchmarks)**: Side-by-side metric comparisons. MUST use Markdown Tables.
+  - **生态、安全与扩展性 (Ecosystem, Security & Extensibility)**: Broader impacts on the developer/user ecosystem.
+
+  ## 4. 产品与商业影响评估 (Product & Market Impact Assessment)
+  - **受众与场景适配 (Target Audience & Use Cases)**: Who benefits most? What are the limitations?
+  - **商业价值与 TCO (Business Value & Total Cost of Ownership)**: Economic implications, pricing dynamics, and cost-benefit analysis.
+
+  ## 5. 战略建议与最终结论 (Strategic Recommendations & Final Verdict)
+  - Actionable takeaways for the user (e.g., "Developer Action Items", "Investment Advice", or "Purchase Recommendations").
+
+  ## 6. 参考数据源 (Reference Data & Sources)
+  - A numbered list of all URLs visited, clearly mapping to the citations in the text.
+
+- Do NOT stop researching and do NOT write the <answer> until you have gathered a massive amount of technical and contextual data from at least 5 distinct sources.
+- When analyzing numbers, statistics, or performance metrics, always provide full context (growth rate, base-line benchmarks, peer comparison side-by-side).
 
 Current date: {current_date}"""
 
@@ -192,15 +217,35 @@ FORCE_SUMMARIZE_PROMPT = """You have now reached the maximum context length. Bas
 
 IMPORTANT: The final report MUST be written in Simplified Chinese (简体中文). However, keep professional terminology, proper nouns, and technical terms in their original English form.
 
-Your report MUST follow this structure:
-1. **核心摘要 (Executive Summary)** — Concise overview of the topic and key conclusions (200+ words)
-2. **关键发现 (Key Findings)** — 3-5 major findings, each with supporting evidence from your research
-3. **深度分析 (Deep Analysis)** — Cross-source synthesis, trend analysis, and original insights (1000+ words minimum)
-4. **结论与建议 (Conclusion & Recommendations)** — Actionable takeaways
-5. **参考资料 (References)** — Full URLs of all sources visited
+Your report MUST follow this rigorous professional structure and MANDATORY LENGTH requirements:
 
-<think>Synthesize all collected data into a coherent, in-depth analysis</think>
-<answer>Your comprehensive research report</answer>"""
+  ## 1. 研究概要 (Executive Summary)
+  - **背景与前提 (Context & Background)**: The underlying premise of the research.
+  - **核心判定 (High-Level Verdict)**: The bottom-line conclusion in 1-2 paragraphs.
+
+  ## 2. 核心洞察与发现 (Key Insights)
+  - 3 to 5 macroscopic findings, each supported by concrete data points, metrics, or citations. (Use bullet points with bold headers).
+
+  ## 3. 多维深度解析 (Multi-Dimensional Deep-Dive)
+  *(This is the largest section, minimum 1500+ words. You MUST break this down into specific sub-sections using ### depending on the topic, such as:)*
+  - **架构与技术基座 (Architecture & Tech Stack)**: Dive into specific specs, algorithms, chips, or frameworks.
+  - **性能基准与测试数据 (Performance & Benchmarks)**: Side-by-side metric comparisons. MUST use Markdown Tables.
+  - **生态、安全与扩展性 (Ecosystem, Security & Extensibility)**: Broader impacts on the developer/user ecosystem.
+
+  ## 4. 产品与商业影响评估 (Product & Market Impact Assessment)
+  - **受众与场景适配 (Target Audience & Use Cases)**: Who benefits most? What are the limitations?
+  - **商业价值与 TCO (Business Value & Total Cost of Ownership)**: Economic implications, pricing dynamics, and cost-benefit analysis.
+
+  ## 5. 战略建议与最终结论 (Strategic Recommendations & Final Verdict)
+  - Actionable takeaways for the user (e.g., "Developer Action Items", "Investment Advice", or "Purchase Recommendations").
+
+  ## 6. 参考数据源 (Reference Data & Sources)
+  - A numbered list of all URLs visited, clearly mapping to the citations in the text.
+
+WARNING: Do NOT output a brief summary. You MUST generate a lengthy, publication-grade report that covers all collected technical details, statistics, and nuances. Short summaries will be deemed as task failures.
+
+<think>Synthesize all collected data into a coherent, in-depth, and extremely detailed analysis following the 6-part professional structure</think>
+<answer>Your exhaustive research report</answer>"""
 
 
 # =============================================================================
