@@ -1,4 +1,7 @@
-# Changelog
+## v1.1.1 (2026-03-25)
+
+### Bug Fixes
+- **Production Stability**: Guarded `nest_asyncio.apply()` to prevent `ValueError` when running with `uvloop` in production Uvicorn environments.
 
 ## v1.1.0 (2026-03-25)
 

@@ -433,18 +433,87 @@ class xSmartReactAgent:
         """检查内容中是否包含最终答案"""
         return self.ANSWER_START in content # 容错：只要有开始标签就认为有答案
     
+    def _sanitize_markdown(self, text: str) -> str:
+        """清理 LLM 生成的 Markdown 中的回声伪影 (echo artifacts)
+        
+        某些 LLM (如 kimi-k2.5) 在生成长结构化输出时，会将行尾的最后一个
+        字符/token 重复输出到下一行，产生大量孤立的符号行。此方法逐行扫描
+        并移除这些伪影，同时修正行内的重复标点。
+        """
+        if not text:
+            return text
+        
+        lines = text.split('\n')
+        cleaned = []
+        in_code_block = False
+        
+        for line in lines:
+            stripped = line.strip()
+            
+            # 跟踪代码块状态 — 代码块内不做清理
+            if stripped.startswith('```'):
+                in_code_block = not in_code_block
+                cleaned.append(line)
+                continue
+            
+            if in_code_block:
+                cleaned.append(line)
+                continue
+            
+            # --- Pattern 1-3, 7-8: 移除孤立符号行 ---
+            # 孤立的 ) . 。 ** ：: | / 等
+            if re.match(r'^\s*[)）.。\*]{1,2}\s*$', stripped):
+                continue
+            if re.match(r'^\s*[：:]\s*$', stripped):
+                continue
+            if re.match(r'^\s*\|\s*$', stripped):
+                continue
+            if re.match(r'^\s*[/]\s*$', stripped):
+                continue
+            # 孤立的 ` 反引号行
+            if re.match(r'^\s*`\s*$', stripped):
+                continue
+            
+            # --- Pattern 4: 行内重复中文标点 ---
+            # ：：→ ：, 。。→ 。, ，，→ ，
+            line = re.sub(r'：{2,}', '：', line)
+            line = re.sub(r'。{2,}', '。', line)
+            line = re.sub(r'，{2,}', '，', line)
+            
+            # --- Pattern 5: 行内重复括号 ---
+            # )) → ), }} → }  (但不影响代码/正则中的合法双括号 — 通过上下文已排除代码块)
+            line = re.sub(r'\){2,}', ')', line)
+            line = re.sub(r'\}{2,}', '}', line)
+            
+            # --- Pattern 6: 行尾多余的 ** (bold 回声) ---
+            # 例如 `**$96****` → `**$96**`, 但不破坏正常的 **bold**
+            line = re.sub(r'\*{3,}', '**', line)
+            
+            # --- Pattern: 表格行尾多余的 | (echo) ---
+            # `| 开源 |\n |` 的 echo 行已被上面的孤立行移除
+            # 但行内 `| 开源 ||` 的双竖线也需要修正
+            line = re.sub(r'\|{2,}', '|', line)
+            
+            cleaned.append(line)
+        
+        # 清理连续空行 (>2 → 1)
+        result = '\n'.join(cleaned)
+        result = re.sub(r'\n{3,}', '\n\n', result)
+        
+        return result.strip()
+    
     def _extract_answer(self, content: str) -> str:
         """从响应内容中提取最终答案"""
         # 尝试匹配闭合标签
         match = re.search(f"{re.escape(self.ANSWER_START)}(.*?){re.escape(self.ANSWER_END)}", content, re.DOTALL)
         if match:
-            return match.group(1).strip()
+            return self._sanitize_markdown(match.group(1).strip())
         
         # 容错：尝试匹配未闭合的开始标签
         if self.ANSWER_START in content:
-            return content.split(self.ANSWER_START)[-1].strip()
+            return self._sanitize_markdown(content.split(self.ANSWER_START)[-1].strip())
             
-        return content.strip()
+        return self._sanitize_markdown(content.strip())
     
     def _has_tool_call(self, content: str) -> bool:
         """检查内容中是否包含工具调用"""
