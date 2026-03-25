@@ -8,7 +8,11 @@ from src.utils.logger import logger
 
 try:
     import nest_asyncio
-    nest_asyncio.apply()
+    try:
+        nest_asyncio.apply()
+    except (ValueError, RuntimeError):
+        # Ignore if loop is already running or incompatible (like uvloop)
+        pass
 except ImportError:
     pass
 
