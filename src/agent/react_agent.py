@@ -461,38 +461,38 @@ class xSmartReactAgent:
                 continue
             
             # --- Pattern 1-3, 7-8: 移除孤立符号行 ---
-            # 孤立的 ) . 。 ** ：: | / 等
-            if re.match(r'^\s*[)）.。\*]{1,2}\s*$', stripped):
+            # 孤立的 ) . 。 ** ：: | / 等，包括组合如 `)**`
+            if re.match(r'^\s*[)）.。\*]{1,3}\s*$', stripped):
                 continue
             if re.match(r'^\s*[：:]\s*$', stripped):
                 continue
             if re.match(r'^\s*\|\s*$', stripped):
                 continue
-            if re.match(r'^\s*[/]\s*$', stripped):
+            if re.match(r'^\s*[/]{1,2}\s*$', stripped):
                 continue
             # 孤立的 ` 反引号行
             if re.match(r'^\s*`\s*$', stripped):
                 continue
             
             # --- Pattern 4: 行内重复中文标点 ---
-            # ：：→ ：, 。。→ 。, ，，→ ，
+            # ：：→ ：, 。。→ 。, ，，→ ，, ！！→ ！
             line = re.sub(r'：{2,}', '：', line)
             line = re.sub(r'。{2,}', '。', line)
             line = re.sub(r'，{2,}', '，', line)
             
             # --- Pattern 5: 行内重复括号 ---
-            # )) → ), }} → }  (但不影响代码/正则中的合法双括号 — 通过上下文已排除代码块)
+            # )) → ), }} → }, ））→ ）  (但不影响代码/正则中的合法双括号 — 通过上下文已排除代码块)
             line = re.sub(r'\){2,}', ')', line)
             line = re.sub(r'\}{2,}', '}', line)
+            line = re.sub(r'）{2,}', '）', line)
             
             # --- Pattern 6: 行尾多余的 ** (bold 回声) ---
             # 例如 `**$96****` → `**$96**`, 但不破坏正常的 **bold**
             line = re.sub(r'\*{3,}', '**', line)
             
-            # --- Pattern: 表格行尾多余的 | (echo) ---
-            # `| 开源 |\n |` 的 echo 行已被上面的孤立行移除
-            # 但行内 `| 开源 ||` 的双竖线也需要修正
+            # --- Pattern: 表格行尾多余的 | (echo) 和 URLs 末尾多余的 //
             line = re.sub(r'\|{2,}', '|', line)
+            line = re.sub(r'([^:])/{2,}$', r'\1/', line) # 防止破坏 http://, 只替换行尾的 //
             
             cleaned.append(line)
         
