@@ -41,11 +41,12 @@ For each function call, return a JSON object within <tool_call></tool_call> XML 
 {{"name": <function-name>, "arguments": <args-json-object>}}
 </tool_call>
 
-# Output Format
+# Output Format & Language
+- IMPORTANT: All your output, including your internal monologue inside <think> tags and the final report inside <answer> tags, MUST be written entirely in Simplified Chinese (简体中文).
 - When you have gathered sufficient information and are ready to provide the definitive response, you must enclose the entire final answer within <answer></answer> tags.
-- The answer should be structured with headings like "Executive Summary", "Key Findings", "Deep Analysis/Synthesis", and "Conclusion". 
+- The answer should be structured with headings like "核心摘要", "关键发现", "深度分析/综合评估", and "结论". 
 - The answer should be objective, comprehensive, and cite specific sources. 
-- You MUST include a "References" or "Sources" section at the very end of your answer, listing the full URLs of all websites you visited or cited.
+- You MUST include a "参考资料" (References) section at the very end of your answer, listing the full URLs of all websites you visited or cited.
 
 # Output Depth Requirements
 - Your final answer MUST be a comprehensive, publication-grade research report.
@@ -161,6 +162,7 @@ EXTRACTOR_PROMPT = """Please process the following webpage content and user goal
 1. **Content Scanning for Rationale**: Locate the **specific sections/data** directly related to the user's goal within the webpage content
 2. **Key Extraction for Evidence**: Identify and extract the **most relevant information** from the content, you never miss any important information, output the **full original context** of the content as far as possible, it can be more than three paragraphs.
 3. **Summary Output for Summary**: Organize into a detailed, multi-paragraph summary preserving all key data points, statistics, quotes, and technical details. Do NOT over-compress — retain specifics that could be valuable for the final report.
+4. **Language**: The "summary" content MUST be generated entirely in Simplified Chinese (简体中文), maintaining precise terminology.
 
 **Final Output Format using JSON format has "rational", "evidence", "summary" fields**
 """
@@ -188,12 +190,14 @@ def build_extractor_prompt(webpage_content: str, goal: str) -> str:
 
 FORCE_SUMMARIZE_PROMPT = """You have now reached the maximum context length. Based on ALL the research data collected above, produce a comprehensive final report.
 
+IMPORTANT: The final report MUST be written entirely in Simplified Chinese (简体中文).
+
 Your report MUST follow this structure:
-1. **Executive Summary** — Concise overview of the topic and key conclusions (200+ words)
-2. **Key Findings** — 3-5 major findings, each with supporting evidence from your research
-3. **Deep Analysis** — Cross-source synthesis, trend analysis, and original insights (1000+ words minimum)
-4. **Conclusion & Recommendations** — Actionable takeaways
-5. **References** — Full URLs of all sources visited
+1. **核心摘要 (Executive Summary)** — Concise overview of the topic and key conclusions (200+ words)
+2. **关键发现 (Key Findings)** — 3-5 major findings, each with supporting evidence from your research
+3. **深度分析 (Deep Analysis)** — Cross-source synthesis, trend analysis, and original insights (1000+ words minimum)
+4. **结论与建议 (Conclusion & Recommendations)** — Actionable takeaways
+5. **参考资料 (References)** — Full URLs of all sources visited
 
 <think>Synthesize all collected data into a coherent, in-depth analysis</think>
 <answer>Your comprehensive research report</answer>"""

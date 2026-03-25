@@ -97,12 +97,14 @@ class VisitTool(BaseTool):
             urls = [urls]
             
         # 并行执行所有访问任务
-        tasks = [self._process_single_url(u, goal) for u in urls]
-        results = await asyncio.gather(*tasks)
+        timeout = aiohttp.ClientTimeout(total=50)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            tasks = [self._process_single_url(session, u, goal) for u in urls]
+            results = await asyncio.gather(*tasks)
         
         return "\n\n=======\n\n".join(results)
     
-    async def _process_single_url(self, url: str, goal: str) -> str:
+    async def _process_single_url(self, session: aiohttp.ClientSession, url: str, goal: str) -> str:
         """处理单个URL
         
         Args:
@@ -125,7 +127,7 @@ class VisitTool(BaseTool):
             return semantic_result
 
         # 1. 读取网页内容
-        content = await self._read_page(url)
+        content = await self._read_page(session, url)
         
         if not content or content.startswith("[visit] Failed"):
             return self._format_error(url, goal, "The provided webpage content could not be accessed.")
@@ -154,7 +156,7 @@ class VisitTool(BaseTool):
             semantic_cache.set("visit", f"{goal}:{url}", raw_content)
             return raw_content
     
-    async def _read_page(self, url: str) -> Optional[str]:
+    async def _read_page(self, session: aiohttp.ClientSession, url: str) -> Optional[str]:
         """使用 Jina Reader 读取网页
         
         Args:
@@ -164,22 +166,18 @@ class VisitTool(BaseTool):
             网页内容或None
         """
         max_retries = 3
-        timeout = aiohttp.ClientTimeout(total=50)
+        # timeout parameter removed since it's now handled by the shared session
         
         for attempt in range(max_retries):
             try:
                 headers = {"Authorization": f"Bearer {self.jina_api_key}"}
                 
-                async with aiohttp.ClientSession(timeout=timeout) as session:
-                    async with session.get(
-                        f"https://r.jina.ai/{url}",
-                        headers=headers
-                    ) as response:
-                        if response.status == 200:
-                            return await response.text()
-                        else:
-                            logger.error(f"[Visit] Error reading {url}: HTTP {response.status}")
-                            
+                async with session.get(f"https://r.jina.ai/{url}", headers=headers) as response:
+                    if response.status == 200:
+                        return await response.text()
+                    else:
+                        logger.error(f"[Visit] Error reading {url}: HTTP {response.status}")
+                        
             except asyncio.TimeoutError:
                 logger.warning(f"[Visit] Timeout reading {url}, attempt {attempt + 1}/{max_retries}")
             except Exception as e:

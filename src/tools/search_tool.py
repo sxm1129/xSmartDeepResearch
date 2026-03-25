@@ -72,11 +72,12 @@ class SearchTool(BaseTool):
         return await self._search_parallel(queries)
 
     async def _search_parallel(self, queries: List[str]) -> str:
-        tasks = [self._search_single_async(q) for q in queries]
-        results = await asyncio.gather(*tasks)
-        return "\n\n=======\n\n".join(results)
+        async with aiohttp.ClientSession() as session:
+            tasks = [self._search_single_async(session, q) for q in queries]
+            results = await asyncio.gather(*tasks)
+            return "\n\n=======\n\n".join(results)
 
-    async def _search_single_async(self, query: str) -> str:
+    async def _search_single_async(self, session: aiohttp.ClientSession, query: str) -> str:
         """异步执行单个搜索"""
         # 检查缓存
         cached_result = cache_manager.get("search", query)
@@ -98,16 +99,15 @@ class SearchTool(BaseTool):
         headers = {'X-API-KEY': self.api_key, 'Content-Type': 'application/json'}
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(f"https://{self.base_host}/search", headers=headers, json=payload, timeout=30) as response:
-                    if response.status == 200:
-                        results = await response.json()
-                        formatted_result = self._format_results(query, results)
-                        cache_manager.set("search", query, formatted_result, expire_seconds=settings.cache_expiry_search)
-                        semantic_cache.set("search", query, formatted_result)
-                        return formatted_result
-                    else:
-                        return f"[Search] API error: {response.status}"
+            async with session.post(f"https://{self.base_host}/search", headers=headers, json=payload, timeout=30) as response:
+                if response.status == 200:
+                    results = await response.json()
+                    formatted_result = self._format_results(query, results)
+                    cache_manager.set("search", query, formatted_result, expire_seconds=settings.cache_expiry_search)
+                    semantic_cache.set("search", query, formatted_result)
+                    return formatted_result
+                else:
+                    return f"[Search] API error: {response.status}"
         except Exception as e:
             return f"[Search] Error: {str(e)}"
     

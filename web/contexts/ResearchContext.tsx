@@ -20,6 +20,7 @@ interface ResearchContextType {
     sources: ResearchSource[];
     startResearch: (query: string, t: (key: string) => string) => Promise<void>;
     resetResearch: () => void;
+    abortResearch: () => void;
 }
 
 const ResearchContext = createContext<ResearchContextType | undefined>(undefined);
@@ -30,13 +31,23 @@ export const ResearchProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const [reportContent, setReportContent] = useState("");
     const [steps, setSteps] = useState<ReasoningStep[]>([]);
     const [sources, setSources] = useState<ResearchSource[]>([]);
+    const abortControllerRef = useRef<AbortController | null>(null);
+
+    const abortResearch = useCallback(() => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
+        }
+        setIsResearching(false);
+    }, []);
 
     const resetResearch = useCallback(() => {
+        abortResearch();
         setReportContent("");
         setSteps([]);
         setSources([]);
         setIsResearching(false);
-    }, []);
+    }, [abortResearch]);
 
     const handleEvent = useCallback((event: ResearchEvent, t: (key: string) => string) => {
         if (event.type === 'status' || event.type === 'think' || event.type === 'tool_start') {
@@ -99,14 +110,20 @@ export const ResearchProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setIsResearching(true);
         setReportContent("");
         setSteps([]);
-        setSources([]);
+        abortResearch();
+        abortControllerRef.current = new AbortController();
 
-        await ResearchService.streamResearch(searchQuery, (event: ResearchEvent) => {
-            handleEvent(event, t);
-        });
+        await ResearchService.streamResearch(
+            searchQuery,
+            (event: ResearchEvent) => {
+                handleEvent(event, t);
+            },
+            undefined,
+            abortControllerRef.current.signal
+        );
 
         setIsResearching(false);
-    }, [isResearching, handleEvent]);
+    }, [isResearching, handleEvent, abortResearch]);
 
     return (
         <ResearchContext.Provider value={{
@@ -117,7 +134,8 @@ export const ResearchProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             steps,
             sources,
             startResearch,
-            resetResearch
+            resetResearch,
+            abortResearch
         }}>
             {children}
         </ResearchContext.Provider>

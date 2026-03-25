@@ -223,7 +223,12 @@ class xSmartReactAgent:
             await asyncio.to_thread(self.session_manager.add_message, session_id, "status", f"Iteration {iterations}...") if session_id else None
             
             # 调用 LLM
-            response = await self._call_llm(messages)
+            try:
+                response = await self._call_llm(messages)
+            except Exception as e:
+                logger.error(f"LLM loop error: {e}")
+                yield {"type": "error", "content": f"LLM Error: {str(e)}"}
+                return
             
             if self.TOOL_RESPONSE_START in response:
                 pos = response.find(self.TOOL_RESPONSE_START)
@@ -413,7 +418,7 @@ class xSmartReactAgent:
                 empty_count += 1
                 if empty_count >= 2:
                     logger.warning(f"[LLM] Received {empty_count} consecutive empty responses, giving up")
-                    return "[LLM returned empty response after retries]"
+                    raise RuntimeError("LLM returned empty response consecutively")
                     
             except Exception as e:
                 logger.error(f"[LLM] Attempt {attempt + 1} failed: {e}")
@@ -422,7 +427,7 @@ class xSmartReactAgent:
                 sleep_time = min(base_sleep_time * (2 ** attempt), 30)
                 await asyncio.sleep(sleep_time)
         
-        return "LLM call failed after all retries"
+        raise RuntimeError(f"LLM call failed after {max_retries} retries")
     
     def _has_answer(self, content: str) -> bool:
         """检查内容中是否包含最终答案"""

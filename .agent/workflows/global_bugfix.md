@@ -4,7 +4,7 @@ description: Structured bug investigation and fix — root cause analysis, minim
 
 # Bug Fix Workflow
 
-**适用场景：** 单个 bug 的诊断和修复。批量修复用 `/hotfix`。
+**适用场景：** 单个 bug 的诊断和修复。批量修复用 `/global_hotfix`。
 **流程：** `RESEARCH → PLAN → EXECUTE → VERIFY`
 
 ---
@@ -25,13 +25,12 @@ mkdir -p .tasks && touch .tasks/<id>.md
 
 3. **Isolate** — 定位到具体代码：
    - 用 `rg` 和 `view_file` 追踪数据流
-   - 检查是否有上游 guard/fallback 掩盖了问题
-   - **确认 bug 确实可触发**（不是理论风险）
+   - 检查上游 guard/fallback
+   - **确认 bug 可触发**（不是理论风险）
 
-4. **Cross-Impact Check** — 检查是否有平行路径存在相同 bug：
+4. **Cross-Impact Check** — 检查平行路径是否存在相同 bug：
 ```bash
-# 找到 bug 所在函数名后，grep 所有使用同一模式的地方
-grep -rn '<buggy_pattern>' web/src/ src/
+grep -rn '<buggy_pattern>' src/
 ```
 // turbo
 
@@ -42,7 +41,7 @@ grep -rn '<buggy_pattern>' web/src/ src/
 - **Location:** [file:line]
 - **Cause:** [why it fails]
 - **Impact:** [user-visible effect]
-- **Parallel paths:** [是否有类似代码也有同样问题？列出]
+- **Parallel paths:** [同一 bug 的其他出处]
 ```
 
 **EXIT GATE:** 根因确认 + 平行路径检查完成。
@@ -54,7 +53,7 @@ grep -rn '<buggy_pattern>' web/src/ src/
 6. 设计最小修复方案：
    - MUST 修复根因，不是症状
    - MUST NOT 引入修复之外的行为改变
-   - 如果发现平行路径有同样 bug，**一起修**
+   - 平行路径有同样 bug → **一起修**
 
 7. 写 checklist：
 ```markdown
@@ -70,15 +69,9 @@ grep -rn '<buggy_pattern>' web/src/ src/
 
 ## Phase 3: EXECUTE
 
-8. 按 checklist 精确修复。
-   - 注释前缀 `// FIX-<id>:` 保留可追溯性
+8. 按 checklist 精确修复。注释前缀 `// FIX-<id>:`。
 
-9. 编译检查：
-```bash
-pytest tests/
-cd web && npm run build
-```
-// turbo
+9. 编译/Lint 检查（使用项目的编译命令）。
 
 10. Self-Heal: 编译失败 → 自主修复，最多 3 次。
 
@@ -88,12 +81,12 @@ cd web && npm run build
 
 ## Phase 4: VERIFY
 
-11. 验证修复：
-    - 根因是否消除（不只是症状消失）
-    - 平行路径是否一起修了
+11. 验证：
+    - 根因消除（不只是症状消失）
+    - 平行路径一起修了
     - 无 unrelated code 被改动
 
-12. Commit with root cause:
+12. Commit:
 ```bash
 git add -A ':!.tasks/*'
 git commit -m "fix(<scope>): <description>
@@ -102,12 +95,12 @@ Root cause: <one-line explanation>
 Parallel fix: <if applicable>"
 ```
 
-**EXIT GATE:** Committed. Root cause documented in commit body.
+**EXIT GATE:** Committed. Root cause in commit body.
 
 ---
 
 ## Anti-Patterns
 
-1. **不要只修症状** — 如果 UI 显示错误数据，别只改 UI 渲染，找数据源头
-2. **不要忘记平行路径** — done handler 修了，polling fallback 也要检查
-3. **不要扩大范围** — 修 bug 时发现 smell，**另开 task** 处理，不在 bug fix 里顺手改
+1. **不要只修症状** — UI 显示错，要找数据源头
+2. **不要忘记平行路径** — handler A 修了，handler B 也要检查
+3. **不要扩大范围** — 修 bug 时发现 smell，另开 task 处理

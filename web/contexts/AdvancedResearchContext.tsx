@@ -42,6 +42,7 @@ interface AdvancedResearchContextType {
     submitCustomDirection: (customInput: string) => Promise<void>;
     startResearch: () => Promise<void>;
     resetAll: () => void;
+    abortCurrent: () => void;
 }
 
 const AdvancedResearchContext = createContext<AdvancedResearchContextType | undefined>(undefined);
@@ -65,8 +66,18 @@ export const AdvancedResearchProvider: React.FC<{ children: React.ReactNode }> =
 
     // Use ref to track if research completed via SSE event (avoids race with manual setPhase)
     const researchCompletedRef = useRef(false);
+    const abortControllerRef = useRef<AbortController | null>(null);
+
+    const abortCurrent = useCallback(() => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
+        }
+        setIsLoading(false);
+    }, []);
 
     const resetAll = useCallback(() => {
+        abortCurrent();
         setPhase('idle');
         setQuery("");
         setClarificationRound(0);
@@ -79,7 +90,7 @@ export const AdvancedResearchProvider: React.FC<{ children: React.ReactNode }> =
         setSources([]);
         setError(null);
         researchCompletedRef.current = false;
-    }, []);
+    }, [abortCurrent]);
 
     /**
      * Handle individual research SSE events (useCallback to avoid recreating on every render)
@@ -152,12 +163,16 @@ export const AdvancedResearchProvider: React.FC<{ children: React.ReactNode }> =
         researchCompletedRef.current = false;
 
         try {
+            abortCurrent();
+            abortControllerRef.current = new AbortController();
+            
             await AdvancedResearchService.streamResearch(
                 {
                     refined_query: researchQuery,
                     original_question: originalQuestion,
                 },
-                (event: ResearchEvent) => handleResearchEvent(event)
+                (event: ResearchEvent) => handleResearchEvent(event),
+                abortControllerRef.current.signal
             );
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Research failed');
@@ -290,6 +305,7 @@ export const AdvancedResearchProvider: React.FC<{ children: React.ReactNode }> =
             submitCustomDirection,
             startResearch,
             resetAll,
+            abortCurrent,
         }}>
             {children}
         </AdvancedResearchContext.Provider>

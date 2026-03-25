@@ -18,18 +18,16 @@ from src.api.schemas import (
     BatchResearchRequest,
     BatchResearchResponse
 )
-from typing import List
+from typing import List, Dict
 from src.utils.logger import logger
 from src.api.dependencies import get_agent, get_task_store
 
-
 router = APIRouter(prefix="/research", tags=["Research"])
-
 
 from src.utils.session_manager import SessionManager
 from src.api.dependencies import get_session_manager
 
-# Deprecated: session_manager = SessionManager()
+_running_tasks: Dict[str, asyncio.Task] = {}
 
 
 @router.post("/stream")
@@ -64,6 +62,7 @@ async def stream_research(
         
         async def research_task():
             """执行研究并将事件推入队列"""
+            _running_tasks[task_id] = asyncio.current_task()
             try:
                 await asyncio.to_thread(
                     session_manager.create_research_task,
@@ -105,6 +104,7 @@ async def stream_research(
                 })
                 await queue.put(f"data: {json.dumps({'type': 'error', 'content': str(e)}, ensure_ascii=False)}\n\n")
             finally:
+                _running_tasks.pop(task_id, None)
                 done_event.set()
                 await queue.put(None)  # Sentinel to stop yielding
         
@@ -243,6 +243,7 @@ async def _run_research_task(task_id: str, request: ResearchRequest):
     callback_url = request.callback_url
     callback_events = request.callback_events
     
+    _running_tasks[task_id] = asyncio.current_task()
     try:
         await asyncio.to_thread(session_manager.update_research_task, task_id, {"status": ResearchStatus.RUNNING})
         
@@ -257,7 +258,7 @@ async def _run_research_task(task_id: str, request: ResearchRequest):
             
             # Webhook 回调
             if callback_url:
-                await _dispatch_webhook(callback_url, event, callback_events)
+                asyncio.create_task(_dispatch_webhook(callback_url, dict(event), callback_events))
             
             if event.get("type") == "final_answer":
                 final_answer_data = event
@@ -285,6 +286,8 @@ async def _run_research_task(task_id: str, request: ResearchRequest):
             "answer": f"Error: {str(e)}",
             "termination_reason": "error"
         })
+    finally:
+        _running_tasks.pop(task_id, None)
 
 
 @router.get("/history", response_model=List[ResearchResponse])
@@ -430,7 +433,10 @@ async def cancel_research(task_id: str, force: bool = False):
          await asyncio.to_thread(session_manager.delete_research_task, task_id)
          return {"message": f"Task {task_id} deleted"}
     
-    # If running and not forced, cancel it
+    # 如果任务正在运行并被主动取消
+    if task_id in _running_tasks:
+        _running_tasks[task_id].cancel()
+        
     await asyncio.to_thread(session_manager.update_research_task, task_id, {
         "status": ResearchStatus.FAILED,
         "termination_reason": "cancelled"

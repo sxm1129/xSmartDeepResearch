@@ -66,12 +66,14 @@ export class AdvancedResearchService {
     static async streamResearch(
         request: AdvancedResearchRequest,
         onEvent: (event: ResearchEvent) => void,
+        signal?: AbortSignal
     ): Promise<void> {
         try {
             const response = await fetch(`${this.BASE_URL}/stream`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(request),
+                signal,
             });
 
             if (!response.ok) {

@@ -4,25 +4,28 @@ description: Browser-based E2E testing — full-stack flow verification with scr
 
 # E2E Testing Workflow
 
-End-to-end testing of user-facing flows using the browser subagent.
-Covers backend API + frontend UI in a real environment.
+**适用场景：** 端到端浏览器验证，覆盖 UI + API + WS 全链路。
+**Invoke:** `/e2e-test [environment]`
+**Environment:** `local` (默认), `production`
 
 ---
 
-## Phase 1: Environment Setup
+## Phase 1: Environment Check
 
-1. Ensure backend and frontend are running:
+1. 确认目标环境可用：
+
+**Local:**
 ```bash
 # Backend (port 9001)
-cd /Users/hs/workspace/github/comicDramaStudio && bash server.sh start
-# Frontend (port 9000)
-cd frontend && npm run dev -- --port 9000
+curl -sf http://localhost:9001/health && echo "backend OK"
+# Frontend (port 3000)
+curl -sf http://localhost:3000 > /dev/null && echo "frontend OK"
 ```
+// turbo
 
-2. Verify services are healthy:
+**Production:**
 ```bash
-curl -s http://localhost:9001/health | head -5
-curl -s http://localhost:9000 | head -5
+curl -sf https://openclaw.fusionxlink.com/health && echo "API OK"
 ```
 // turbo
 
@@ -30,61 +33,57 @@ curl -s http://localhost:9000 | head -5
 
 ## Phase 2: Define Test Scenarios
 
-3. List the user flows to verify. Example scenarios for this project:
+2. 根据当前测试目标列出场景：
 
-| Flow | Steps |
-|------|-------|
-| **Create Project** | Open homepage → Click "新建项目" → Fill title → Submit → Verify project card |
-| **Generate Outline** | Open project → Click "生成大纲" → Wait for SSE pipeline → Verify outline text |
-| **Episode Management** | Navigate to episode → Verify Kanban → Check scene cards |
-| **Image Generation** | Click "生成素材" → Wait for WS update → Verify image appears |
-| **Video Composition** | Click "合成视频" → Monitor progress → Verify final video |
+| Flow | Steps | 验证条件 |
+|------|-------|---------|
+| **登录** | 打开首页 → 登录 | 看到 dashboard |
+| **创建 Workspace** | 点击新建 → 输入名称 → 确认 | workspace 出现在侧边栏 |
+| **发送消息** | 输入 prompt → 发送 | thinking 状态 → agent 回复 |
+| **切换 Workspace** | 点击另一个 workspace | 对话内容切换，无残留 |
+| **WS 事件** | 发送消息后观察实时更新 | 无闪跳、无重复消息 |
+| **消息中切换** | 发消息 → 立刻切 ws | 旧 ws 的回复不污染新 ws |
 
 ---
 
 ## Phase 3: Execute Tests
 
-4. For each flow, use `browser_subagent` with a detailed task description:
-   - Specify exact URL to navigate to
-   - Describe expected elements (buttons, text, images)
-   - Define success/failure conditions
-   - Request screenshots at key checkpoints
+3. 使用 `browser_subagent` 执行每个场景：
+   - 指定 URL
+   - 描述期望的元素和交互
+   - 定义成功/失败条件
+   - 关键节点截图
 
-5. Example browser test:
-```
-Task: Navigate to http://localhost:9000, click the "新建项目" button,
-enter "测试项目" as the title, submit the form. Verify that a project
-card with title "测试项目" appears on the dashboard. Take a screenshot
-when done. Return the project title and URL.
-```
-
-6. Between browser tests, verify backend state:
+4. 浏览器测试之间，验证后端状态：
 ```bash
-curl -s http://localhost:9001/api/projects | python -m json.tool | head -20
+# Local
+curl -s http://localhost:9001/v1/workspaces | head -20
+# Production
+curl -s https://openclaw.fusionxlink.com/v1/workspaces -H "Authorization: Bearer <token>" | head -20
 ```
-// turbo
 
 ---
 
 ## Phase 4: Report
 
-7. Compile results:
+5. 汇总结果：
 
 | Flow | Status | Screenshot | Notes |
 |------|--------|------------|-------|
-| Create Project | ✅ Pass | [screenshot](file:///..) | — |
-| Generate Outline | ❌ Fail | [screenshot](file:///..) | SSE timeout |
+| 登录 | PASS | [screenshot](file:///..) | — |
+| 发送消息 | FAIL | [screenshot](file:///..) | WS timeout |
 
-8. For any failures:
-   - Capture error screenshot
-   - Check backend logs: `tail -50 .logs/backend.log`
-   - File a bug via `/bugfix` workflow if issue confirmed
+6. 失败项处理：
+   - 截图 + 后端日志
+   - 确认是 bug → 走 `/bugfix`
+   - 确认是环境问题 → 记录，不开 task
 
 ---
 
 ## Best Practices
 
-- Always wait for async operations (WS messages, SSE streams) before asserting
-- Use `waitForPreviousTools: true` when browser state depends on API calls
-- Take screenshots at key state transitions for documentation
-- Clean up test data after runs if applicable
+- 异步操作（WS、polling）必须等待完成后再断言
+- 用 `waitForPreviousTools: true` 串联依赖步骤
+- 关键状态转换时截图留档
+- 测试完清理测试数据（如适用）
+- 重点测试**状态切换场景**（切 workspace、F5 刷新、并发消息）

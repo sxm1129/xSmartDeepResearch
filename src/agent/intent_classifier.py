@@ -6,6 +6,12 @@ from typing import Dict, Any, List, Optional
 from openai import AsyncOpenAI
 from src.utils.logger import logger
 
+try:
+    import nest_asyncio
+    nest_asyncio.apply()
+except ImportError:
+    pass
+
 CLASSIFICATION_PROMPT = """You are an intent classifier for a deep research assistant. 
 Your task is to classify the user's research query into one of the following categories:
 
@@ -97,6 +103,4 @@ class IntentClassifier:
     def classify(self, query: str) -> Dict[str, str]:
         """对原始查询进行分类 (同步版本 - 供非异步环境使用)"""
         import asyncio
-        import nest_asyncio
-        nest_asyncio.apply()
         return asyncio.run(self.aclassify(query))

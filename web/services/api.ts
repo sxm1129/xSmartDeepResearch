@@ -54,7 +54,8 @@ export class ResearchService {
     static async streamResearch(
         question: string,
         onEvent: (event: ResearchEvent) => void,
-        maxIterations?: number
+        maxIterations?: number,
+        signal?: AbortSignal
     ): Promise<void> {
         try {
             const body: any = { question };
@@ -68,6 +69,7 @@ export class ResearchService {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(body),
+                signal,
             });
 
             if (!response.ok) {
