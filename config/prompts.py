@@ -42,7 +42,7 @@ For each function call, return a JSON object within <tool_call></tool_call> XML 
 </tool_call>
 
 # Output Format & Language
-- IMPORTANT: All your output, including your internal monologue inside <think> tags and the final report inside <answer> tags, MUST be written entirely in Simplified Chinese (简体中文).
+- IMPORTANT: All your output, including your internal monologue inside <think> tags and the final report inside <answer> tags, MUST be written in Simplified Chinese (简体中文). However, you MUST keep professional terminology, proper nouns, acronyms, and technical terms in their original English form (e.g., default to 'API', not '应用程序接口') without forcibly translating them.
 - When you have gathered sufficient information and are ready to provide the definitive response, you must enclose the entire final answer within <answer></answer> tags.
 - The answer should be structured with headings like "核心摘要", "关键发现", "深度分析/综合评估", and "结论". 
 - The answer should be objective, comprehensive, and cite specific sources. 
@@ -162,7 +162,7 @@ EXTRACTOR_PROMPT = """Please process the following webpage content and user goal
 1. **Content Scanning for Rationale**: Locate the **specific sections/data** directly related to the user's goal within the webpage content
 2. **Key Extraction for Evidence**: Identify and extract the **most relevant information** from the content, you never miss any important information, output the **full original context** of the content as far as possible, it can be more than three paragraphs.
 3. **Summary Output for Summary**: Organize into a detailed, multi-paragraph summary preserving all key data points, statistics, quotes, and technical details. Do NOT over-compress — retain specifics that could be valuable for the final report.
-4. **Language**: The "summary" content MUST be generated entirely in Simplified Chinese (简体中文), maintaining precise terminology.
+4. **Language**: The "summary" content MUST be generated in Simplified Chinese (简体中文). However, keep professional terminology, proper nouns, and technical terms in their original English form.
 
 **Final Output Format using JSON format has "rational", "evidence", "summary" fields**
 """
@@ -190,7 +190,7 @@ def build_extractor_prompt(webpage_content: str, goal: str) -> str:
 
 FORCE_SUMMARIZE_PROMPT = """You have now reached the maximum context length. Based on ALL the research data collected above, produce a comprehensive final report.
 
-IMPORTANT: The final report MUST be written entirely in Simplified Chinese (简体中文).
+IMPORTANT: The final report MUST be written in Simplified Chinese (简体中文). However, keep professional terminology, proper nouns, and technical terms in their original English form.
 
 Your report MUST follow this structure:
 1. **核心摘要 (Executive Summary)** — Concise overview of the topic and key conclusions (200+ words)
