@@ -16,7 +16,7 @@ from src.api.schemas.advanced_research import (
 )
 from src.utils.logger import logger
 from src.api.dependencies import get_agent, get_session_manager
-from src.api.schemas import ResearchStatus
+from src.api.schemas import ResearchStatus, TaskStatus
 
 
 router = APIRouter(prefix="/advanced-research", tags=["Advanced Research"])
@@ -116,107 +116,41 @@ async def clarify_intent(request: ClarifyRequest):
         )
 
 
-@router.post("/stream")
-async def stream_advanced_research(
-    request: Request,
-    research_request: AdvancedResearchRequest,
+@router.post("", response_model=TaskStatus)
+async def create_advanced_research(
+    request: AdvancedResearchRequest,
 ):
     """
-    高级研究流式端点 (SSE)
+    高级研究队列端点
     
-    接收经过意图澄清后的精炼查询，调用现有 ReAct Agent 进行深度研究。
-    返回与 `/research/stream` 相同格式的 SSE 事件流。
+    接收经过意图澄清后的精炼查询，提交到后台异步队列。
+    前端应使用 GET /research/{task_id}/stream 监听进度。
     """
+    from src.api.routes.research import get_arq_pool
+    
+    task_id = str(uuid.uuid4())[:10]
     session_manager = get_session_manager()
     
-    async def event_generator():
-        agent = get_agent()
-        from config import settings
-        effective_max_iterations = research_request.max_iterations or settings.max_llm_call_per_run
-        
-        task_id = str(uuid.uuid4())[:10]
-        queue = asyncio.Queue()
-        done_event = asyncio.Event()
-        
-        async def heartbeat_task():
-            """每15秒发送SSE心跳"""
-            while not done_event.is_set():
-                try:
-                    await asyncio.wait_for(done_event.wait(), timeout=15)
-                    break
-                except asyncio.TimeoutError:
-                    await queue.put(": keepalive\n\n")
-        
-        async def research_task():
-            """执行研究并将事件推入队列"""
-            try:
-                await asyncio.to_thread(
-                    session_manager.create_research_task,
-                    task_id=task_id,
-                    question=research_request.original_question,
-                    status=ResearchStatus.RUNNING
-                )
-                
-                final_answer_data = None
-                
-                # 发送任务创建事件，附带原始问题和精炼查询
-                await queue.put(f"data: {json.dumps({'type': 'task_created', 'content': 'Advanced research initiated', 'task_id': task_id, 'original_question': research_request.original_question, 'refined_query': research_request.refined_query}, ensure_ascii=False)}\n\n")
-                
-                # 使用精炼后的查询调用现有 Agent
-                async for event in agent.stream_run(research_request.refined_query, max_iterations=effective_max_iterations):
-                    if await request.is_disconnected():
-                        logger.info("Client disconnected, stopping advanced research stream.")
-                        break
-                    
-                    if isinstance(event, dict) and event.get("type") == "final_answer":
-                        final_answer_data = event
-                    
-                    await queue.put(f"data: {json.dumps(event, ensure_ascii=False)}\n\n")
-                
-                # 更新任务状态
-                update_data = {"status": ResearchStatus.COMPLETED}
-                if final_answer_data:
-                    update_data.update({
-                        "answer": final_answer_data.get("content", ""),
-                        "iterations": final_answer_data.get("iterations", 0),
-                        "termination_reason": final_answer_data.get("termination", "answer")
-                    })
-                
-                await asyncio.to_thread(session_manager.update_research_task, task_id, update_data)
-                
-            except Exception as e:
-                logger.error(f"Advanced research stream failed: {e}")
-                await asyncio.to_thread(session_manager.update_research_task, task_id, {
-                    "status": ResearchStatus.FAILED,
-                    "termination_reason": str(e)
-                })
-                await queue.put(f"data: {json.dumps({'type': 'error', 'content': str(e)}, ensure_ascii=False)}\n\n")
-            finally:
-                done_event.set()
-                await queue.put(None)
-        
-        # Start tasks
-        heartbeat = asyncio.create_task(heartbeat_task())
-        research = asyncio.create_task(research_task())
-        
-        try:
-            while True:
-                item = await queue.get()
-                if item is None:
-                    break
-                yield item
-        finally:
-            done_event.set()
-            heartbeat.cancel()
-            if not research.done():
-                research.cancel()
+    await asyncio.to_thread(
+        session_manager.create_research_task,
+        task_id=task_id,
+        question=request.original_question,
+        status=ResearchStatus.PENDING
+    )
     
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        }
+    pool = await get_arq_pool()
+    await pool.enqueue_job(
+        "run_research_task",
+        task_id,
+        request.refined_query,
+        {"original_question": request.original_question},
+        _job_id=task_id
+    )
+    
+    from src.api.schemas import TaskStatus
+    return TaskStatus(
+        task_id=task_id,
+        status=ResearchStatus.PENDING,
+        current_iteration=0,
+        message="Advanced task queued"
     )

@@ -28,6 +28,24 @@ services:
     networks:
       - xsmart-local
 
+  xsmart-worker:
+    image: xsmart-deepresearch:1.0.0
+    container_name: xsmart-local-worker
+    command: ["arq", "src.config.queue.WorkerSettings"]
+    env_file:
+      - ../.env
+    environment:
+      - PYTHONPATH=/app
+      - TZ=Asia/Shanghai
+    volumes:
+      - xsmart_data:/app/data
+      - xsmart_logs:/app/logs
+    restart: unless-stopped
+    depends_on:
+      - xsmart-deepresearch
+    networks:
+      - xsmart-local
+
 networks:
   xsmart-local:
     driver: bridge

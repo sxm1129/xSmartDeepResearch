@@ -32,11 +32,16 @@ export const ResearchProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const [steps, setSteps] = useState<ReasoningStep[]>([]);
     const [sources, setSources] = useState<ResearchSource[]>([]);
     const abortControllerRef = useRef<AbortController | null>(null);
+    const taskIdRef = useRef<string | null>(null);
 
     const abortResearch = useCallback(() => {
         if (abortControllerRef.current) {
             abortControllerRef.current.abort();
             abortControllerRef.current = null;
+        }
+        if (taskIdRef.current) {
+            ResearchService.cancelTask(taskIdRef.current).catch(console.error);
+            taskIdRef.current = null;
         }
         setIsResearching(false);
     }, []);
@@ -113,16 +118,22 @@ export const ResearchProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         abortResearch();
         abortControllerRef.current = new AbortController();
 
-        await ResearchService.streamResearch(
-            searchQuery,
-            (event: ResearchEvent) => {
-                handleEvent(event, t);
-            },
-            undefined,
-            abortControllerRef.current.signal
-        );
-
-        setIsResearching(false);
+        try {
+            const { task_id } = await ResearchService.submitResearch(searchQuery);
+            taskIdRef.current = task_id;
+            
+            await ResearchService.subscribeToTask(
+                task_id,
+                (event: ResearchEvent) => {
+                    handleEvent(event, t);
+                },
+                abortControllerRef.current.signal
+            );
+        } catch (err: any) {
+            handleEvent({ type: 'error', content: err.message }, t);
+        } finally {
+            setIsResearching(false);
+        }
     }, [isResearching, handleEvent, abortResearch]);
 
     return (

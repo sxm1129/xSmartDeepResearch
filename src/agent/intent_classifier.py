@@ -3,8 +3,14 @@
 import json
 import re
 from typing import Dict, Any, List, Optional
+from pydantic import BaseModel, Field
 from openai import AsyncOpenAI
 from src.utils.logger import logger
+
+class IntentResponse(BaseModel):
+    category: str = Field(description="The category of the user's research query, e.g., 'coding_tech', 'finance_market', etc.")
+    reason: str = Field(description="A brief reason for the classification.")
+
 
 try:
     import nest_asyncio
@@ -53,51 +59,37 @@ class IntentClassifier:
             raw_content = response.choices[0].message.content
             logger.debug(f"Raw Intent Response: {raw_content}")
             
+            # Step 1: Direct Pydantic validation
             try:
-                result = json.loads(raw_content)
-            except Exception as json_err:
-                # 尝试清洗 JSON (处理可能的 Markdown 代码块)
-                clean_json = re.sub(r'```json\s*(.*?)\s*```', r'\1', raw_content, flags=re.DOTALL)
-                result = json.loads(clean_json)
-            
-            # Ensure result is a dictionary
-            if not isinstance(result, dict):
-                logger.warning(f"⚠️ Intent response is not a dict: {type(result)} -> {result}")
-                # Try to parse if it's a string that looks like JSON
-                if isinstance(result, str):
-                    try:
-                        result = json.loads(result)
-                    except:
-                        pass
-                
-                if not isinstance(result, dict):
-                     return {"category": "general", "reason": f"Invalid response format: {str(result)[:50]}..."}
+                intent = IntentResponse.model_validate_json(raw_content)
+                result_cat = intent.category.strip().strip('"').strip("'").lower()
+                result_rsn = intent.reason.strip()
+                logger.info(f"🔍 Intent Classified (Fast): {result_cat} | Reason: {result_rsn}")
+                return {"category": result_cat, "reason": result_rsn}
+            except Exception as pydantic_err:
+                logger.warning(f"⚠️ Pydantic direct validate failed: {pydantic_err}. Attempting regex cleanup.")
 
-            # 兼容嵌套结构 (有些模型即使要求 json_object 也会嵌套一层)
-            if "intent" in result and isinstance(result["intent"], dict):
+            # Step 2: Regex cleanup and dict extraction fallback
+            clean_json = re.sub(r'```json\s*(.*?)\s*```', r'\1', raw_content, flags=re.DOTALL)
+            try:
+                result = json.loads(clean_json)
+            except Exception as json_err:
+                return {"category": "general", "reason": f"Fallback due to JSON parse error: {str(json_err)}"}
+            
+            # Extract nested intent if present
+            if isinstance(result, dict) and "intent" in result and isinstance(result["intent"], dict):
                 result = result["intent"]
             
-            # 提取 category 和 reason，确保不抛出 KeyError
-            # Explicitly check keys to avoid any weird behavior
-            category = "general"
-            if "category" in result:
-                category = result["category"]
-            elif "type" in result:
-                category = result["type"]
+            # Fallback extraction logic
+            category = result.get("category", result.get("type", "general"))
+            reason = result.get("reason", result.get("explanation", "No reason provided"))
             
-            reason = "No reason provided"
-            if "reason" in result:
-                reason = result["reason"]
-            elif "explanation" in result:
-                reason = result["explanation"]
-            
-            # 清理字符串
             if isinstance(category, str):
                 category = category.strip().strip('"').strip("'").lower()
             if isinstance(reason, str):
                 reason = reason.strip()
             
-            logger.info(f"🔍 Intent Classified: {category} | Reason: {reason}")
+            logger.info(f"🔍 Intent Classified (Fallback): {category} | Reason: {reason}")
             return {"category": category, "reason": reason}
             
         except Exception as e:

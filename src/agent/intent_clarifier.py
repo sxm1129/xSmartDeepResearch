@@ -4,6 +4,7 @@ import json
 import re
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
+from pydantic import BaseModel, Field
 from openai import AsyncOpenAI
 from src.utils.logger import logger
 
@@ -26,6 +27,22 @@ class ClarificationResult:
     refined_query: Optional[str] = None
     original_question: str = ""
 
+# =============================================================================
+# Pydantic Models for LLM Outputs
+# =============================================================================
+
+class ClarificationDirectionModel(BaseModel):
+    id: str = Field(description="Unique identifier for the direction")
+    title: str = Field(description="Concise title for the direction")
+    description: str = Field(description="Brief explanation of the research angle")
+    example_query: str = Field(description="A full, specific research question")
+
+class ClarificationResponseR1(BaseModel):
+    directions: List[ClarificationDirectionModel] = Field(description="List of exactly 4 research directions")
+
+class ClarificationResponseR2(BaseModel):
+    refined_query: str = Field(description="The comprehensive, refined research query")
+    research_scope: str = Field(description="A brief 1-sentence summary of the research scope")
 
 # =============================================================================
 # Prompts
@@ -134,16 +151,24 @@ class IntentClarifier:
             raw_content = response.choices[0].message.content
             logger.debug(f"Clarification R1 Raw Response: {raw_content}")
             
-            result = self._parse_json_response(raw_content)
-            
             directions = []
-            for d in result.get("directions", []):
-                directions.append(ClarificationDirection(
-                    id=d.get("id", f"dir_{len(directions)+1}"),
-                    title=d.get("title", "Unknown Direction"),
-                    description=d.get("description", ""),
-                    example_query=d.get("example_query", question)
-                ))
+            try:
+                # Step 1: Direct Pydantic validation
+                resp_model = ClarificationResponseR1.model_validate_json(raw_content)
+                for d in resp_model.directions:
+                    directions.append(ClarificationDirection(
+                        id=d.id, title=d.title, description=d.description, example_query=d.example_query
+                    ))
+            except Exception as e:
+                logger.warning(f"⚠️ Pydantic R1 validation failed: {e}. Falling back to manual parse.")
+                result = self._parse_json_response(raw_content)
+                for d in result.get("directions", []):
+                    directions.append(ClarificationDirection(
+                        id=d.get("id", f"dir_{len(directions)+1}"),
+                        title=d.get("title", "Unknown Direction"),
+                        description=d.get("description", ""),
+                        example_query=d.get("example_query", question)
+                    ))
             
             if not directions:
                 # Fallback: 如果 LLM 没有返回有效方向，生成默认方向
@@ -208,8 +233,14 @@ class IntentClarifier:
             raw_content = response.choices[0].message.content
             logger.debug(f"Clarification R2 Raw Response: {raw_content}")
             
-            result = self._parse_json_response(raw_content)
-            refined_query = result.get("refined_query", selected_direction.example_query)
+            try:
+                # Direct Pydantic validation
+                resp_model = ClarificationResponseR2.model_validate_json(raw_content)
+                refined_query = resp_model.refined_query
+            except Exception as e:
+                logger.warning(f"⚠️ Pydantic R2 validation failed: {e}. Falling back to manual parse.")
+                result = self._parse_json_response(raw_content)
+                refined_query = result.get("refined_query", selected_direction.example_query)
             
             logger.info(f"🎯 Clarification R2: Refined query: {refined_query[:80]}...")
             
@@ -265,8 +296,14 @@ class IntentClarifier:
             )
             
             raw_content = response.choices[0].message.content
-            result = self._parse_json_response(raw_content)
-            refined_query = result.get("refined_query", f"{original_question} - {custom_input}")
+            try:
+                # Direct Pydantic validation
+                resp_model = ClarificationResponseR2.model_validate_json(raw_content)
+                refined_query = resp_model.refined_query
+            except Exception as e:
+                logger.warning(f"⚠️ Pydantic Custom validation failed: {e}. Falling back to manual parse.")
+                result = self._parse_json_response(raw_content)
+                refined_query = result.get("refined_query", f"{original_question} - {custom_input}")
             
             logger.info(f"🎯 Custom clarification: {refined_query[:80]}...")
             

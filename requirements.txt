@@ -45,8 +45,9 @@ python-pptx>=0.6.21
 openpyxl>=3.1.0
 python-docx>=0.8.11
 
-# Cache
+# Cache & Queue
 redis>=4.5.0
+arq>=0.25.0
 chromadb>=0.4.0
 sentence-transformers>=2.2.0
 

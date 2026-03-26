@@ -21,169 +21,34 @@ from src.api.schemas import (
 from typing import List, Dict
 from src.utils.logger import logger
 from src.api.dependencies import get_agent, get_task_store
-
-router = APIRouter(prefix="/research", tags=["Research"])
-
 from src.utils.session_manager import SessionManager
 from src.api.dependencies import get_session_manager
 
-_running_tasks: Dict[str, asyncio.Task] = {}
+from arq import create_pool
+from arq.connections import ArqRedis
+from src.config.queue import redis_settings
+
+router = APIRouter(prefix="/research", tags=["Research"])
+
+_arq_pool: Optional[ArqRedis] = None
+
+async def get_arq_pool() -> ArqRedis:
+    global _arq_pool
+    if _arq_pool is None:
+        _arq_pool = await create_pool(redis_settings)
+    return _arq_pool
 
 
-@router.post("/stream")
-async def stream_research(
-    request: Request,
-    research_request: ResearchRequest,
-):
-    session_manager = get_session_manager()
+@router.post("", response_model=TaskStatus)
+async def create_research(request: ResearchRequest):
     """
-    流式执行研究任务 (SSE)
-    
-    实时返回研究过程中的思考、工具调用和最终结果。
-    内置心跳保活机制，防止代理/客户端超时断开。
-    """
-    async def event_generator():
-        agent = get_agent()
-        from config import settings
-        effective_max_iterations = research_request.max_iterations or settings.max_llm_call_per_run
-        
-        task_id = str(uuid.uuid4())[:10]
-        queue = asyncio.Queue()
-        done_event = asyncio.Event()
-        
-        async def heartbeat_task():
-            """每15秒发送SSE心跳注释，防止代理超时"""
-            while not done_event.is_set():
-                try:
-                    await asyncio.wait_for(done_event.wait(), timeout=15)
-                    break  # done_event was set
-                except asyncio.TimeoutError:
-                    await queue.put(": keepalive\n\n")
-        
-        async def research_task():
-            """执行研究并将事件推入队列"""
-            _running_tasks[task_id] = asyncio.current_task()
-            try:
-                await asyncio.to_thread(
-                    session_manager.create_research_task,
-                    task_id=task_id,
-                    question=research_request.question,
-                    status=ResearchStatus.RUNNING
-                )
-
-                final_answer_data = None
-                
-                await queue.put(f"data: {json.dumps({'type': 'task_created', 'content': 'Task initiated', 'task_id': task_id}, ensure_ascii=False)}\n\n")
-                
-                async for event in agent.stream_run(research_request.question, max_iterations=effective_max_iterations):
-                    if await request.is_disconnected():
-                        logger.info("Client disconnected, stopping research stream.")
-                        break
-                    
-                    if isinstance(event, dict) and event.get("type") == "final_answer":
-                        final_answer_data = event
-                    
-                    await queue.put(f"data: {json.dumps(event, ensure_ascii=False)}\n\n")
-                
-                # Update task on completion
-                update_data = {"status": ResearchStatus.COMPLETED}
-                if final_answer_data:
-                    update_data.update({
-                        "answer": final_answer_data.get("content", ""),
-                        "iterations": final_answer_data.get("iterations", 0),
-                        "termination_reason": final_answer_data.get("termination", "answer")
-                    })
-                
-                await asyncio.to_thread(session_manager.update_research_task, task_id, update_data)
-
-            except Exception as e:
-                logger.error(f"Stream research failed: {e}")
-                await asyncio.to_thread(session_manager.update_research_task, task_id, {
-                    "status": ResearchStatus.FAILED,
-                    "termination_reason": str(e)
-                })
-                await queue.put(f"data: {json.dumps({'type': 'error', 'content': str(e)}, ensure_ascii=False)}\n\n")
-            finally:
-                _running_tasks.pop(task_id, None)
-                done_event.set()
-                await queue.put(None)  # Sentinel to stop yielding
-        
-        # Start both tasks
-        heartbeat = asyncio.create_task(heartbeat_task())
-        research = asyncio.create_task(research_task())
-        
-        try:
-            while True:
-                item = await queue.get()
-                if item is None:
-                    break
-                yield item
-        finally:
-            done_event.set()
-            heartbeat.cancel()
-            if not research.done():
-                research.cancel()
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        }
-    )
-
-
-@router.post("", response_model=ResearchResponse)
-async def create_research(
-    request: ResearchRequest,
-    background_tasks: BackgroundTasks
-):
-    """
-    创建研究任务
-    
-    同步执行研究任务并返回结果。对于长时间任务，考虑使用 /research/async 端点。
-    """
-    task_id = str(uuid.uuid4())[:10]  # AUDIT S5 fix: consistent length with batch
-    
-    try:
-        agent = get_agent()
-        from config import settings
-        effective_max_iterations = request.max_iterations or settings.max_llm_call_per_run
-        
-        # 执行研究
-        result = await agent.run(request.question, max_iterations=effective_max_iterations)
-        
-        return ResearchResponse(
-            task_id=task_id,
-            question=request.question,
-            answer=result.prediction,
-            status=ResearchStatus.COMPLETED,
-            iterations=result.iterations,
-            execution_time=result.execution_time,
-            termination_reason=result.termination,
-            created_at=datetime.now()
-        )
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Research failed: {str(e)}")
-
-
-@router.post("/async", response_model=TaskStatus)
-async def create_async_research(
-    request: ResearchRequest,
-    background_tasks: BackgroundTasks
-):
-    """
-    创建异步研究任务
-    
-    立即返回任务ID，后台执行研究。使用 GET /research/{task_id} 查询结果。
+    创建异步研究任务 (被提交给 arq Worker)
+    立即返回任务ID，前端应使用 GET /research/{task_id}/stream 监听进度。
     """
     task_id = str(uuid.uuid4())[:10]
-    
-    # 初始化任务状态 (MySQL)
     session_manager = get_session_manager()
+    from config import settings
+    
     await asyncio.to_thread(
         session_manager.create_research_task,
         task_id=task_id,
@@ -191,105 +56,106 @@ async def create_async_research(
         status=ResearchStatus.PENDING
     )
     
-    # 在后台执行研究
-    background_tasks.add_task(
-        _run_research_task,
+    pool = await get_arq_pool()
+    await pool.enqueue_job(
+        "run_research_task",
         task_id,
-        request
+        request.question,
+        {
+            "original_question": request.question,
+            "callback_url": getattr(request, "callback_url", None),
+            "callback_events": getattr(request, "callback_events", None)
+        },
+        _job_id=task_id
     )
     
     return TaskStatus(
         task_id=task_id,
         status=ResearchStatus.PENDING,
         current_iteration=0,
-        message="Task created, processing in background"
+        message="Task queued"
+    )
+
+@router.get("/{task_id}/stream")
+async def stream_task_events(task_id: str, request: Request):
+    """
+    订阅 Redis Pub/Sub 中的任务事件，流式返回 (SSE)。
+    """
+    from config import settings
+    import redis.asyncio as aioredis
+    
+    async def event_generator():
+        redis = aioredis.from_url(settings.redis_url)
+        pubsub = redis.pubsub()
+        channel = f"task_events_{task_id}"
+        await pubsub.subscribe(channel)
+        
+        try:
+            while True:
+                if await request.is_disconnected():
+                    logger.info(f"Client disconnected from {task_id} stream.")
+                    break
+                
+                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                if message is not None:
+                    data = message['data'].decode('utf-8')
+                    # Check for EOF sentinel
+                    try:
+                        event_data = json.loads(data)
+                        if event_data.get("content") == "EOF":
+                            break
+                    except Exception:
+                        pass
+                    
+                    yield f"data: {data}\n\n"
+                
+                # keepalive for Nginx 504
+                yield ": keepalive\n\n"
+                await asyncio.sleep(0.1)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            await pubsub.unsubscribe(channel)
+            await pubsub.close()
+            await redis.aclose()
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
     )
 
 
-async def _dispatch_webhook(
-    callback_url: str,
-    event: dict,
-    callback_events: Optional[List[str]] = None
-):
-    """向回调URL发送进度事件
-    
-    Args:
-        callback_url: 回调地址
-        event: 事件字典 (type, content, ...)
-        callback_events: 事件类型过滤列表, None 表示全部发送
+# Keep old sync route available if needed for backwards compat, or remove it. We'll rename old POST "" to /sync if needed, 
+# But wait, we just overwrote POST "". So let's delete the old create_research and create_async_research methods.
+# For /async endpoint it now maps directly to POST "" logic, but to keep backwards compat we can map it too.
+@router.post("/async", response_model=TaskStatus)
+async def create_async_research_legacy(request: ResearchRequest):
+    return await create_research(request)
+@router.post("/{task_id}/cancel")
+async def cancel_task_endpoint(task_id: str):
     """
-    if callback_events and event.get("type") not in callback_events:
-        return
-    
-    payload = {
-        "task_id": event.get("task_id"),
-        "type": event["type"],
-        "content": event.get("content", ""),
-        "iteration": event.get("iteration"),
-        "tool": event.get("tool"),
-        "timestamp": datetime.now().isoformat()
-    }
-    
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            await client.post(callback_url, json=payload)
-    except Exception as e:
-        logger.warning(f"Webhook dispatch to {callback_url} failed: {e}")
-
-
-async def _run_research_task(task_id: str, request: ResearchRequest):
-    """后台执行研究任务 (支持Webhook回调)"""
+    发送中断信号到 arq Worker
+    """
     session_manager = get_session_manager()
-    callback_url = request.callback_url
-    callback_events = request.callback_events
+    await asyncio.to_thread(session_manager.update_research_task, task_id, {
+        "status": ResearchStatus.FAILED,
+        "termination_reason": "cancelled"
+    })
     
-    _running_tasks[task_id] = asyncio.current_task()
+    from arq.jobs import Job
+    pool = await get_arq_pool()
+    job = Job(task_id, pool)
     try:
-        await asyncio.to_thread(session_manager.update_research_task, task_id, {"status": ResearchStatus.RUNNING})
-        
-        agent = get_agent()
-        from config import settings
-        effective_max_iterations = request.max_iterations or settings.max_llm_call_per_run
-        
-        # 使用 stream_run 消费事件, 支持 webhook 回调
-        final_answer_data = None
-        async for event in agent.stream_run(request.question, max_iterations=effective_max_iterations):
-            event["task_id"] = task_id
-            
-            # Webhook 回调
-            if callback_url:
-                asyncio.create_task(_dispatch_webhook(callback_url, dict(event), callback_events))
-            
-            if event.get("type") == "final_answer":
-                final_answer_data = event
-        
-        # 更新 DB
-        update_data = {"status": ResearchStatus.COMPLETED}
-        if final_answer_data:
-            update_data.update({
-                "answer": final_answer_data.get("content", ""),
-                "iterations": final_answer_data.get("iterations", 0),
-                "execution_time": 0,
-                "termination_reason": final_answer_data.get("termination", "answer")
-            })
-        await asyncio.to_thread(session_manager.update_research_task, task_id, update_data)
-        
+        await job.abort()
+        return {"status": "cancelled"}
     except Exception as e:
-        # 错误也回调通知
-        if callback_url:
-            await _dispatch_webhook(callback_url, {
-                "task_id": task_id, "type": "error", "content": str(e)
-            }, callback_events)
-        
-        await asyncio.to_thread(session_manager.update_research_task, task_id, {
-            "status": ResearchStatus.FAILED,
-            "answer": f"Error: {str(e)}",
-            "termination_reason": "error"
-        })
-    finally:
-        _running_tasks.pop(task_id, None)
-
-
+        logger.warning(f"Could not cleanly abort arq job {task_id}: {e}")
+        return {"status": "error_or_completed"}
 @router.get("/history", response_model=List[ResearchResponse])
 async def list_research_history():
     """
@@ -371,24 +237,17 @@ async def get_research_status(task_id: str):
 
 
 @router.post("/batch", response_model=BatchResearchResponse)
-async def create_batch_research(
-    request: BatchResearchRequest,
-    background_tasks: BackgroundTasks
-):
-    """
-    创建批量研究任务
-    
-    一次性提交多个问题，并行启动后台任务。返回批次ID和所有子任务ID。
-    """
+async def create_batch_research(request: BatchResearchRequest):
     batch_id = str(uuid.uuid4())[:10]
     task_ids = []
+    
+    session_manager = get_session_manager()
+    pool = await get_arq_pool()
     
     for question in request.questions:
         task_id = str(uuid.uuid4())[:10]
         task_ids.append(task_id)
         
-        # 初始化任务状态 (MySQL)
-        session_manager = get_session_manager()
         await asyncio.to_thread(
             session_manager.create_research_task,
             task_id=task_id,
@@ -396,16 +255,16 @@ async def create_batch_research(
             status=ResearchStatus.PENDING
         )
         
-        
-        # 在后台并行启动
-        research_req = ResearchRequest(
-            question=question,
-            max_iterations=request.max_iterations # Batch request handles its own defaults or passes explicit
-        )
-        background_tasks.add_task(
-            _run_research_task,
+        await pool.enqueue_job(
+            "run_research_task",
             task_id,
-            research_req
+            question,
+            {
+                "original_question": question,
+                "callback_url": getattr(request, "callback_url", None),
+                "callback_events": getattr(request, "callback_events", None)
+            },
+            _job_id=task_id
         )
     
     return BatchResearchResponse(
@@ -414,29 +273,29 @@ async def create_batch_research(
         status="accepted"
     )
 
-
 @router.delete("/{task_id}")
 async def cancel_research(task_id: str, force: bool = False):
     """
     取消或删除研究任务
-    
-    - 如果任务正在运行且 force=False (默认): 标记为 Failed (取消)
-    - 如果任务已完成/失败 或 force=True: 从数据库永久删除
     """
     session_manager = get_session_manager()
     task = await asyncio.to_thread(session_manager.get_research_task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
     
-    # AUDIT S12 fix: simplify deletion logic to a single check
+    # 尝试从队列中止任务
+    try:
+        from arq.jobs import Job
+        pool = await get_arq_pool()
+        job = Job(task_id, pool)
+        await job.abort()
+    except Exception:
+        pass
+        
     if force or task["status"] in [ResearchStatus.COMPLETED, ResearchStatus.FAILED, ResearchStatus.TIMEOUT]:
          await asyncio.to_thread(session_manager.delete_research_task, task_id)
          return {"message": f"Task {task_id} deleted"}
     
-    # 如果任务正在运行并被主动取消
-    if task_id in _running_tasks:
-        _running_tasks[task_id].cancel()
-        
     await asyncio.to_thread(session_manager.update_research_task, task_id, {
         "status": ResearchStatus.FAILED,
         "termination_reason": "cancelled"

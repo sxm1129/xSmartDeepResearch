@@ -7,7 +7,7 @@
 
 import React, { createContext, useState, useContext, useCallback, useRef } from 'react';
 import { AdvancedResearchService, ClarificationDirection, ClarifyResponse } from '../services/advancedResearchApi';
-import { ResearchEvent } from '../services/api';
+import { ResearchEvent, ResearchService } from '../services/api';
 import { extractSourcesFromToolResponse, ResearchSource } from '../utils/sourceUtils';
 import { LanguageContext } from '../App';
 
@@ -67,11 +67,16 @@ export const AdvancedResearchProvider: React.FC<{ children: React.ReactNode }> =
     // Use ref to track if research completed via SSE event (avoids race with manual setPhase)
     const researchCompletedRef = useRef(false);
     const abortControllerRef = useRef<AbortController | null>(null);
+    const taskIdRef = useRef<string | null>(null);
 
     const abortCurrent = useCallback(() => {
         if (abortControllerRef.current) {
             abortControllerRef.current.abort();
             abortControllerRef.current = null;
+        }
+        if (taskIdRef.current) {
+            ResearchService.cancelTask(taskIdRef.current).catch(console.error);
+            taskIdRef.current = null;
         }
         setIsLoading(false);
     }, []);
@@ -166,11 +171,14 @@ export const AdvancedResearchProvider: React.FC<{ children: React.ReactNode }> =
             abortCurrent();
             abortControllerRef.current = new AbortController();
             
-            await AdvancedResearchService.streamResearch(
-                {
-                    refined_query: researchQuery,
-                    original_question: originalQuestion,
-                },
+            const { task_id } = await AdvancedResearchService.submitResearch({
+                refined_query: researchQuery,
+                original_question: originalQuestion,
+            });
+            taskIdRef.current = task_id;
+            
+            await ResearchService.subscribeToTask(
+                task_id,
                 (event: ResearchEvent) => handleResearchEvent(event),
                 abortControllerRef.current.signal
             );

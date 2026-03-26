@@ -51,24 +51,34 @@ export interface ResearchHistoryItem {
 export class ResearchService {
     private static BASE_URL = '/api/v1/research';
 
-    static async streamResearch(
-        question: string,
+    static async submitResearch(question: string, maxIterations?: number): Promise<{ task_id: string }> {
+        const body: any = { question };
+        if (maxIterations) {
+            body.max_iterations = maxIterations;
+        }
+
+        const response = await fetch(`${this.BASE_URL}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+            throw new Error(`API Error: ${response.statusText}`);
+        }
+
+        return response.json();
+    }
+
+    static async subscribeToTask(
+        taskId: string,
         onEvent: (event: ResearchEvent) => void,
-        maxIterations?: number,
         signal?: AbortSignal
     ): Promise<void> {
         try {
-            const body: any = { question };
-            if (maxIterations) {
-                body.max_iterations = maxIterations;
-            }
-
-            const response = await fetch(`${this.BASE_URL}/stream`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(body),
+            const response = await fetch(`${this.BASE_URL}/${taskId}/stream`, {
                 signal,
             });
 
@@ -106,13 +116,21 @@ export class ResearchService {
                     }
                 }
             }
-        } catch (error) {
+        } catch (error: any) {
+            if (error.name === 'AbortError') {
+                console.log('Stream aborted by user');
+                return;
+            }
             console.error('Research stream failed', error);
             onEvent({
                 type: 'error',
                 content: error instanceof Error ? error.message : 'Unknown error occurred'
             });
         }
+    }
+
+    static async cancelTask(taskId: string): Promise<void> {
+        await fetch(`${this.BASE_URL}/${taskId}/cancel`, { method: 'POST' });
     }
 
     static async getHistory(): Promise<ResearchHistoryItem[]> {

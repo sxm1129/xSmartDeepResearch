@@ -28,6 +28,24 @@ services:
     networks:
       - xsmart-network
 
+  xsmart-worker:
+    image: crpi-feit7ei40cgu7xjt.cn-shenzhen.personal.cr.aliyuncs.com/sxm1129/xsmart-deepresearch:1.1.2
+    container_name: xsmart-worker
+    command: ["arq", "src.config.queue.WorkerSettings"]
+    env_file:
+      - ../.env
+    environment:
+      - PYTHONPATH=/app
+      - TZ=Asia/Shanghai
+    volumes:
+      - ../data:/app/data
+      - ../logs:/app/logs
+    restart: unless-stopped
+    depends_on:
+      - xsmart-deepresearch
+    networks:
+      - xsmart-network
+
 networks:
   xsmart-network:
     driver: bridge

@@ -61,61 +61,21 @@ export class AdvancedResearchService {
     }
 
     /**
-     * Start streaming advanced research with a refined query
+     * Start advanced research with a refined query (Submits task to background queue)
      */
-    static async streamResearch(
-        request: AdvancedResearchRequest,
-        onEvent: (event: ResearchEvent) => void,
-        signal?: AbortSignal
-    ): Promise<void> {
-        try {
-            const response = await fetch(`${this.BASE_URL}/stream`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(request),
-                signal,
-            });
+    static async submitResearch(
+        request: AdvancedResearchRequest
+    ): Promise<{ task_id: string }> {
+        const response = await fetch(`${this.BASE_URL}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(request),
+        });
 
-            if (!response.ok) {
-                throw new Error(`API Error: ${response.statusText}`);
-            }
-
-            if (!response.body) {
-                throw new Error('Response body is null');
-            }
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-
-                const chunk = decoder.decode(value, { stream: true });
-                buffer += chunk;
-
-                const lines = buffer.split('\n\n');
-                buffer = lines.pop() || '';
-
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        try {
-                            const jsonStr = line.substring(6);
-                            const event: ResearchEvent = JSON.parse(jsonStr);
-                            onEvent(event);
-                        } catch (e) {
-                            console.error('Failed to parse SSE event', e);
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('Advanced research stream failed', error);
-            onEvent({
-                type: 'error',
-                content: error instanceof Error ? error.message : 'Unknown error occurred'
-            });
+        if (!response.ok) {
+            throw new Error(`API Error: ${response.statusText}`);
         }
+
+        return response.json();
     }
 }
